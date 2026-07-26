@@ -1,0 +1,139 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+    public: false
+
+  # Auto-register application/infrastructure/integration classes. The Domain
+  # namespace is excluded because it is made of pure value objects, enums and
+  # exceptions that must never be treated as services; the three dependency-free
+  # domain *services* it does contain are registered explicitly below.
+  Vtinnovations\GuardianTypo3\:
+    resource: '../Classes/*'
+    exclude:
+      # Pure value objects, enums and exceptions — never services.
+      - '../Classes/Domain/*'
+      # Application-layer read model (value object), constructed by services.
+      - '../Classes/Application/Schedule/ScheduleForecast.php'
+      # Instantiated by its factory with a runtime path, not autowired.
+      - '../Classes/Infrastructure/Lock/FlockLock.php'
+      # Built by hand with resolved php/composer/project paths, never autowired.
+      - '../Classes/Application/Update/ComposerCommandFactory.php'
+      # Standalone recovery-panel runtime: hand-wired by StandaloneRecoveryKernel
+      # from the panel's disk location, never resolved through the container.
+      - '../Classes/Recovery/Standalone/*'
+
+  # Pure, dependency-free domain services that are injected elsewhere.
+  Vtinnovations\GuardianTypo3\Domain\Filesystem\PathNormalizer: ~
+  Vtinnovations\GuardianTypo3\Domain\Archive\ArchiveEntryValidator: ~
+  Vtinnovations\GuardianTypo3\Domain\Schedule\ScheduleEvaluator: ~
+  Vtinnovations\GuardianTypo3\Domain\License\DomainNormalizer: ~
+
+  # The backend module controller and the AJAX controller are resolved by
+  # TYPO3's module/AJAX routing, so they must be publicly retrievable.
+  Vtinnovations\GuardianTypo3\Controller\Backend\GuardianModuleController:
+    public: true
+
+  Vtinnovations\GuardianTypo3\Controller\Backend\GuardianAjaxController:
+    public: true
+
+  # Console command (run due scheduled backups from cron / the TYPO3 Scheduler).
+  Vtinnovations\GuardianTypo3\Command\RunDueBackupsCommand:
+    public: true
+    tags:
+      - { name: 'console.command', command: 'guardian:backup:run-due' }
+
+  # Console worker that runs a queued update job (spawned by the backend).
+  Vtinnovations\GuardianTypo3\Command\RunUpdateJobCommand:
+    public: true
+    tags:
+      - { name: 'console.command', command: 'guardian:update:run' }
+
+  # Detached worker that performs the deferred Guardian self-disable.
+  Vtinnovations\GuardianTypo3\Command\RunSelfMaintenanceCommand:
+    public: true
+    tags:
+      - { name: 'console.command', command: 'guardian:self-maintenance:run' }
+
+  # Isolated developer tool: prints the pinned integrity representation.
+  Vtinnovations\GuardianTypo3\Command\LicenseDigestCommand:
+    public: true
+    tags:
+      - { name: 'console.command', command: 'guardian:license:digest' }
+
+  # ── Port → adapter bindings ────────────────────────────────────────────────
+  Vtinnovations\GuardianTypo3\Domain\Clock\ClockInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Clock\SystemClock
+
+  # TER (TYPO3 Extension Repository) HTTPS transport → strict RequestFactory impl.
+  Vtinnovations\GuardianTypo3\Infrastructure\Ter\TerHttpTransportInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Ter\RequestFactoryTerTransport
+
+  # Enable/Disable go through TYPO3's supported package API (never file edits).
+  Vtinnovations\GuardianTypo3\Application\Contract\Typo3ExtensionStateInterface:
+    alias: Vtinnovations\GuardianTypo3\Typo3\Package\Typo3CorePackageService
+
+  # Deferred self-maintenance worker spawner.
+  Vtinnovations\GuardianTypo3\Application\Contract\DeferredWorkerSpawnerInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\SelfMaintenance\SelfMaintenanceSpawner
+
+  Vtinnovations\GuardianTypo3\Application\Contract\ProjectEnvironmentInterface:
+    alias: Vtinnovations\GuardianTypo3\Typo3\Environment\Typo3ProjectEnvironment
+
+  Vtinnovations\GuardianTypo3\Application\Contract\WorkingDirectoryProviderInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Paths\GuardianPaths
+
+  Vtinnovations\GuardianTypo3\Application\Contract\BackendAuthorizationInterface:
+    alias: Vtinnovations\GuardianTypo3\Typo3\Authorization\BackendUserAuthorization
+
+  Vtinnovations\GuardianTypo3\Application\Contract\SystemLoggerInterface:
+    alias: Vtinnovations\GuardianTypo3\Typo3\Logging\Typo3SystemLogger
+
+  Vtinnovations\GuardianTypo3\Application\Contract\SchedulerIntegrationInterface:
+    alias: Vtinnovations\GuardianTypo3\Typo3\Scheduler\Typo3SchedulerIntegration
+
+  Vtinnovations\GuardianTypo3\Application\Contract\RuntimeConfigurationRepositoryInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Configuration\JsonRuntimeConfigurationRepository
+
+  Vtinnovations\GuardianTypo3\Application\Contract\LicenseStateRepositoryInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\License\JsonLicenseStateRepository
+
+  Vtinnovations\GuardianTypo3\Application\Contract\LicenseVerifierInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\License\VtOneLicenseVerifier
+
+  Vtinnovations\GuardianTypo3\Application\Contract\LicenseUpdaterInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\License\VtOneLicenseUpdater
+
+  Vtinnovations\GuardianTypo3\Infrastructure\License\Signal\SignalTransportInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\License\Signal\CurlSignalTransport
+
+  Vtinnovations\GuardianTypo3\Application\Contract\ScheduleRepositoryInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Schedule\JsonScheduleRepository
+
+  Vtinnovations\GuardianTypo3\Application\Contract\LockFactoryInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Lock\FlockLockFactory
+
+  # Phase 1 ships only the refuse-to-run executor; a shell-free real executor is
+  # introduced in the update/backup phases.
+  Vtinnovations\GuardianTypo3\Application\Contract\CommandExecutorInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Process\UnavailableCommandExecutor
+
+  # ── Backup subsystem bindings ──────────────────────────────────────────────
+  Vtinnovations\GuardianTypo3\Application\Contract\DatabaseDumperInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Database\Typo3DatabaseDumper
+
+  Vtinnovations\GuardianTypo3\Application\Contract\MailerInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Notification\Typo3Mailer
+
+  Vtinnovations\GuardianTypo3\Application\Contract\ScheduleConfigStoreInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Schedule\JsonScheduleConfigStore
+
+  # ── Recovery subsystem bindings ────────────────────────────────────────────
+  Vtinnovations\GuardianTypo3\Application\Contract\DatabaseImporterInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Database\Typo3DatabaseImporter
+
+  Vtinnovations\GuardianTypo3\Application\Contract\MaintenanceModeInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Maintenance\FileMaintenanceMode
+
+  Vtinnovations\GuardianTypo3\Application\Contract\RecoveryHistoryStoreInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Recovery\JsonRecoveryHistoryStore

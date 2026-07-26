@@ -1,0 +1,59 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<div class="updater-tab-content" data-tab-panel="extensions">
+
+    <f:comment>── Installed extensions & packages (migrated from Dashboard) ──</f:comment>
+    <div class="updater-card">
+        <h3>🧩 <f:translate key="extensions.manage.title" extensionName="GuardianTypo3"/></h3>
+        <p style="color:var(--updater-text-muted);font-size:.9rem;margin:.4rem 0 1rem;">
+            <f:translate key="extensions.manage.description" extensionName="GuardianTypo3"/>
+        </p>
+
+        <div class="updater-pkg-controls">
+            <button type="button" class="updater-btn" id="updaterPkgLoadBtn" data-action="packages-load">📦 <f:translate key="dashboard.packages.load" extensionName="GuardianTypo3"/></button>
+            <input type="text" class="updater-pkg-filter" id="updaterPkgFilter" data-action="packages-filter" placeholder="{f:translate(key: 'dashboard.packages.filter', extensionName: 'GuardianTypo3')}" style="display:none;">
+            <select class="updater-pkg-source" id="updaterPkgSource" data-action="packages-filter" style="display:none;">
+                <option value=""><f:translate key="dashboard.packages.source.all" extensionName="GuardianTypo3"/></option>
+                <option value="core"><f:translate key="dashboard.packages.classification.core" extensionName="GuardianTypo3"/></option>
+                <option value="third_party"><f:translate key="dashboard.packages.classification.third_party" extensionName="GuardianTypo3"/></option>
+                <option value="custom"><f:translate key="dashboard.packages.classification.custom" extensionName="GuardianTypo3"/></option>
+            </select>
+            <label class="updater-pkg-checkbox" id="updaterPkgOnlyUpdatesLabel" style="display:none;">
+                <input type="checkbox" id="updaterPkgOnlyUpdates" data-action="packages-filter">
+                <f:translate key="dashboard.packages.onlyUpdates" extensionName="GuardianTypo3"/>
+            </label>
+        </div>
+
+        <div id="updaterPkgResult"></div>
+    </div>
+
+    <f:comment>── Search the TYPO3 Extension Repository (TER) ──</f:comment>
+    <div class="updater-card">
+        <h3>🔎 <f:translate key="extensions.ter.title" extensionName="GuardianTypo3"/></h3>
+        <p style="color:var(--updater-text-muted);font-size:.9rem;margin:.4rem 0 1rem;">
+            <f:translate key="extensions.ter.description" extensionName="GuardianTypo3"/>
+        </p>
+        <div class="updater-pkg-controls">
+            <input type="text" class="updater-pkg-filter" id="guardianTerQuery" data-action="ter-query" placeholder="{f:translate(key: 'extensions.ter.placeholder', extensionName: 'GuardianTypo3')}">
+            <button type="button" class="updater-btn" id="guardianTerSearchBtn" data-action="ter-search">🔎 <f:translate key="extensions.ter.search" extensionName="GuardianTypo3"/></button>
+        </div>
+        <div id="guardianTerResults" style="margin-top:1rem;"></div>
+    </div>
+
+    <f:comment>── Upload a custom extension (ZIP) ──</f:comment>
+    <div class="updater-card">
+        <h3>⬆️ <f:translate key="extensions.upload.title" extensionName="GuardianTypo3"/></h3>
+        <p style="color:var(--updater-text-muted);font-size:.9rem;margin:.4rem 0 1rem;">
+            <f:translate key="extensions.upload.description" extensionName="GuardianTypo3"/>
+        </p>
+        <div class="updater-pkg-controls">
+            <input type="file" id="guardianUploadFile" accept=".zip,application/zip" data-action="upload-select">
+            <button type="button" class="updater-btn" id="guardianUploadBtn" data-action="upload-start" disabled>⬆️ <f:translate key="extensions.upload.start" extensionName="GuardianTypo3"/></button>
+            <span id="guardianUploadMsg" class="updater-inline-msg"></span>
+        </div>
+        <div id="guardianUploadPanel" style="margin-top:1rem;"></div>
+    </div>
+
+</div>
+
+</html>

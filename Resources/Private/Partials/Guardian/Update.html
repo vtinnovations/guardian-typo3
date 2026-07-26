@@ -1,0 +1,102 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<div class="updater-tab-content" data-tab-panel="update">
+
+    <div class="updater-card">
+        <h3>🔄 <f:translate key="update.title" extensionName="GuardianTypo3"/></h3>
+        <p style="color:var(--updater-text-muted);font-size:.9rem;margin:.4rem 0 1rem;">
+            <f:translate key="update.description" extensionName="GuardianTypo3"/>
+        </p>
+        <p style="color:var(--updater-text-muted);font-size:.8rem;margin:.4rem 0 1rem;">
+            💡 <f:translate key="update.logHint" extensionName="GuardianTypo3"/>
+        </p>
+
+        <div id="updaterJobControls">
+            <button type="button" id="updaterDryRunBtn" class="updater-btn" data-action="update-dry-run" disabled>🧪 <f:translate key="update.dryRun" extensionName="GuardianTypo3"/></button>
+            <button type="button" id="updaterRunLiveBtn" class="updater-btn updater-btn-primary" data-action="update-open" disabled style="background:var(--updater-danger);">▶ Run Live</button>
+            <button type="button" class="updater-btn updater-btn-secondary" data-action="update-check">🌐 <f:translate key="update.checkOnline" extensionName="GuardianTypo3"/></button>
+            <span style="color:var(--updater-text-muted);font-size:.8rem;margin-left:1rem;">
+                <f:translate key="update.snapshotHint" extensionName="GuardianTypo3"/>
+            </span>
+            <span id="updaterUpdateMsg" class="updater-inline-msg"></span>
+        </div>
+        <div id="updaterUpgradePaths" class="updater-card" style="margin-top:1rem;display:none;"></div>
+
+        <f:comment>── Real update modal ──</f:comment>
+        <div id="updaterUpdateModal" class="updater-modal" style="display:none;">
+            <div class="updater-modal-backdrop" data-action="update-close"></div>
+            <div class="updater-modal-dialog">
+                <h2>▶ <f:translate key="update.modal.title" extensionName="GuardianTypo3"/></h2>
+                <p style="color:var(--updater-text-muted);font-size:.85rem;">
+                    <f:translate key="update.modal.warning" extensionName="GuardianTypo3"/>
+                </p>
+
+                <h3 style="margin-top:1rem;"><f:translate key="update.mode.title" extensionName="GuardianTypo3"/></h3>
+                <label class="updater-radio-row">
+                    <input type="radio" name="updateMode" value="full" checked>
+                    <div>
+                        <div class="label-strong"><f:translate key="update.mode.full" extensionName="GuardianTypo3"/></div>
+                        <div class="desc"><f:translate key="update.mode.fullDescription" extensionName="GuardianTypo3"/></div>
+                    </div>
+                </label>
+                <label class="updater-radio-row">
+                    <input type="radio" name="updateMode" value="patch">
+                    <div>
+                        <div class="label-strong"><f:translate key="update.mode.conservative" extensionName="GuardianTypo3"/></div>
+                        <div class="desc"><f:translate key="update.mode.conservativeDescription" extensionName="GuardianTypo3"/></div>
+                    </div>
+                </label>
+                <label class="updater-radio-row">
+                    <input type="radio" name="updateMode" value="selective">
+                    <div>
+                        <div class="label-strong"><f:translate key="update.mode.selective" extensionName="GuardianTypo3"/></div>
+                        <div class="desc"><f:translate key="update.mode.selectiveDescription" extensionName="GuardianTypo3"/></div>
+                    </div>
+                </label>
+
+                <div id="updaterSelectivePackages" style="display:none;margin-top:1rem;max-height:300px;overflow-y:auto;border:1px solid var(--updater-border);border-radius:4px;padding:.5rem;">
+                    <div style="text-align:center;color:var(--updater-text-muted);padding:1rem;"><f:translate key="js.loading" extensionName="GuardianTypo3"/></div>
+                </div>
+
+                <h3 style="margin-top:1rem;"><f:translate key="update.snapshot.title" extensionName="GuardianTypo3"/></h3>
+                <label class="updater-radio-row">
+                    <input type="checkbox" id="updaterSnapshotVendor" checked>
+                    <div>
+                        <div class="label-strong"><f:translate key="update.snapshot.vendor" extensionName="GuardianTypo3"/></div>
+                        <div class="desc"><f:translate key="update.snapshot.vendorDescription" extensionName="GuardianTypo3"/></div>
+                    </div>
+                </label>
+
+                <h3 style="margin-top:1rem;"><f:translate key="update.email.title" extensionName="GuardianTypo3"/></h3>
+                <label class="updater-radio-row" style="border-color:#c89a3a;">
+                    <input type="checkbox" id="updaterSendRecoveryEmail" checked>
+                    <div>
+                        <div class="label-strong">📧 <f:translate key="update.email.label" extensionName="GuardianTypo3"/></div>
+                        <div class="desc">
+                            <f:translate key="update.email.description" extensionName="GuardianTypo3"/>
+                        </div>
+                    </div>
+                </label>
+
+                <label class="updater-chk" style="margin-top:1rem;">
+                    <input type="checkbox" id="updaterConfirmUpdate"> <f:translate key="update.confirmBox" extensionName="GuardianTypo3"/>
+                </label>
+
+                <div class="updater-modal-actions">
+                    <button type="button" class="updater-btn updater-btn-secondary" data-action="update-close"><f:translate key="buttons.cancel" extensionName="GuardianTypo3"/></button>
+                    <button type="button" class="updater-btn" style="background:var(--updater-danger);" data-action="update-start" disabled>▶ <f:translate key="update.start" extensionName="GuardianTypo3"/></button>
+                </div>
+            </div>
+        </div>
+
+        <div id="updaterJobActive" style="display:none;margin-top:1rem;"></div>
+
+        <details style="margin-top:1rem;">
+            <summary style="cursor:pointer;font-size:.85rem;color:var(--updater-text-muted);">▸ <f:translate key="update.jobs.recent" extensionName="GuardianTypo3"/></summary>
+            <div id="updaterJobArchive" class="updater-job-archive" style="margin-top:.8rem;"><em><f:translate key="js.loading" extensionName="GuardianTypo3"/></em></div>
+        </details>
+    </div>
+
+</div>
+
+</html>

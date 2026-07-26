@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    PHPUnit configuration for Guardian's CMS-independent unit tests.
+
+    These tests exercise pure Domain logic only and do NOT bootstrap TYPO3, so
+    they can run with a plain `vendor/bin/phpunit` once dependencies are
+    installed. They have NOT been executed in this environment (no PHP/Composer
+    runtime is available here); see Documentation/Testing.md for the commands and
+    the TYPO3 13.4 / 14 test matrix.
+
+    The attributes used below (source/include, cacheDirectory, failOnWarning,
+    failOnRisky) and the #[Test]/#[DataProvider] attributes in the tests are all
+    valid in PHPUnit 10.5 and 11, so this file works with the whole
+    "^10.5 || ^11.0" range Guardian allows across TYPO3 13.4 and 14.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         failOnWarning="true"
+         failOnRisky="true"
+         cacheDirectory=".phpunit.cache">
+    <testsuites>
+        <testsuite name="Guardian domain unit tests">
+            <directory>Tests/Unit</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory suffix=".php">Classes/Domain</directory>
+            <directory suffix=".php">Classes/Application</directory>
+        </include>
+    </source>
+</phpunit>

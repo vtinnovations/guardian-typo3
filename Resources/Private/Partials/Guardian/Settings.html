@@ -1,0 +1,79 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<div class="updater-tab-content" data-tab-panel="settings">
+
+    <f:comment>── Pro License (v-t.one) ──</f:comment>
+    <div class="updater-card">
+        <h3>🔑 <f:translate key="settings.license.title" extensionName="GuardianTypo3"/></h3>
+        <p style="color:var(--updater-text-muted);font-size:.88rem;margin:.3rem 0 .9rem;line-height:1.5;">
+            <f:translate key="settings.license.description" extensionName="GuardianTypo3"/>
+        </p>
+        <p style="font-size:.85rem;margin:.3rem 0 .9rem;">
+            🔗 <f:translate key="settings.license.obtain" extensionName="GuardianTypo3"/>
+            <a href="https://www.v-t.one" target="_blank" rel="noopener" style="color:var(--updater-text-link);font-weight:600;">v-t.one</a> (Free &amp; Pro).
+        </p>
+
+        <div id="proLicenseState" style="margin-bottom:.8rem;font-size:.85rem;color:var(--updater-text-muted);"><f:translate key="js.license.loadingState" extensionName="GuardianTypo3"/></div>
+
+        <div class="updater-recovery-row" style="margin-bottom:.6rem;">
+            <label style="min-width:120px;"><f:translate key="settings.license.key" extensionName="GuardianTypo3"/></label>
+            <input type="text" id="proLicenseInput" placeholder="{f:translate(key: 'settings.license.placeholder', extensionName: 'GuardianTypo3')}" style="flex:1;font-family:monospace;" maxlength="190" autocomplete="off" spellcheck="false">
+        </div>
+
+        <button type="button" id="proLicenseActivateButton" class="updater-btn" disabled style="font-size:.85rem;padding:.45rem .9rem;"><f:if condition="{isLicensed}"><f:then><f:translate key="js.license.update" extensionName="GuardianTypo3"/></f:then><f:else><f:translate key="settings.license.activate" extensionName="GuardianTypo3"/></f:else></f:if></button>
+        <button type="button" id="proLicenseRemoveButton" class="updater-btn updater-btn-secondary" disabled style="font-size:.85rem;padding:.45rem .9rem;"><f:translate key="settings.license.remove" extensionName="GuardianTypo3"/></button>
+        <span id="proLicenseStatus" role="status" aria-live="polite" style="margin-left:.7rem;font-size:.85rem;"></span>
+    </div>
+
+    <f:comment>── Recovery e-mail settings ──</f:comment>
+    <div class="updater-card">
+        <h3>📧 <f:translate key="settings.email.title" extensionName="GuardianTypo3"/></h3>
+        <p style="color:var(--updater-text-muted);font-size:.88rem;margin:.3rem 0 .9rem;line-height:1.5;">
+            <f:translate key="settings.email.description" extensionName="GuardianTypo3"/>
+        </p>
+        <label class="updater-pkg-checkbox" style="display:flex;gap:.5rem;align-items:center;margin-bottom:.7rem;">
+            <input type="checkbox" id="recoveryNotifyEnabled" data-action="notifications-toggle">
+            <f:translate key="settings.email.enable" extensionName="GuardianTypo3"/>
+        </label>
+        <div class="updater-recovery-row" style="margin-bottom:.4rem;">
+            <label style="min-width:120px;"><f:translate key="settings.email.recipient" extensionName="GuardianTypo3"/></label>
+            <input type="text" id="recoveryEmailInput" placeholder="admin@example.com, ops@example.com" style="flex:1;">
+        </div>
+        <div style="font-size:.78rem;color:var(--updater-text-muted);margin-left:120px;margin-bottom:.6rem;line-height:1.5;">
+            <f:translate key="settings.email.recipientsHelp" extensionName="GuardianTypo3"/>
+        </div>
+        <div class="updater-recovery-row" style="margin-bottom:.4rem;">
+            <label style="min-width:120px;"><f:translate key="settings.email.sender" extensionName="GuardianTypo3"/></label>
+            <input type="email" id="recoverySenderInput" placeholder="{f:translate(key: 'settings.email.senderPlaceholder', extensionName: 'GuardianTypo3')}" style="flex:1;">
+        </div>
+        <div style="font-size:.78rem;color:var(--updater-text-muted);margin-left:120px;margin-bottom:.8rem;line-height:1.5;">
+            <f:translate key="settings.email.senderHelp" extensionName="GuardianTypo3"/>
+        </div>
+        <button type="button" id="recoveryEmailSaveBtn" class="updater-btn updater-btn-secondary" data-action="notifications-save" style="font-size:.85rem;padding:.45rem .9rem;">💾 <f:translate key="common.save" extensionName="GuardianTypo3"/></button>
+        <button type="button" id="recoveryEmailTestBtn" class="updater-btn" data-action="notifications-test" style="font-size:.85rem;padding:.45rem .9rem;">✉️ <f:translate key="settings.email.test" extensionName="GuardianTypo3"/></button>
+        <span id="recoveryEmailMsg" class="updater-inline-msg" role="status" aria-live="polite"></span>
+    </div>
+
+    <f:comment>── Server settings (PHP CLI binary) ──</f:comment>
+    <div class="updater-card">
+        <h3>⚙️ <f:translate key="settings.php.title" extensionName="GuardianTypo3"/></h3>
+        <p style="color:var(--updater-text-muted);font-size:.9rem;margin:.4rem 0 1rem;">
+            <f:translate key="settings.php.description" extensionName="GuardianTypo3"/>
+        </p>
+        <div class="updater-sched-row">
+            <label><f:translate key="settings.php.binary" extensionName="GuardianTypo3"/></label>
+            <input type="text" id="runtimePhpBinary" placeholder="{f:translate(key: 'settings.php.placeholder', extensionName: 'GuardianTypo3')}" style="font-family:monospace;flex:1;min-width:280px;">
+        </div>
+        <div id="runtimeCandidates" style="margin-left:95px;margin-top:.5rem;font-size:.8rem;"></div>
+        <div id="phpTestResult" style="margin-left:95px;margin-top:.5rem;font-size:.82rem;"></div>
+        <div class="updater-sched-actions" style="margin-top:.8rem;">
+            <button type="button" id="phpDetectBtn" class="updater-btn updater-btn-secondary" data-action="php-detect" style="font-size:.85rem;padding:.4rem .9rem;">🔎 <f:translate key="settings.php.detect" extensionName="GuardianTypo3"/></button>
+            <button type="button" id="phpTestBtn" class="updater-btn updater-btn-secondary" data-action="php-test" style="font-size:.85rem;padding:.4rem .9rem;">🔍 <f:translate key="common.test" extensionName="GuardianTypo3"/></button>
+            <button type="button" id="phpSaveBtn" class="updater-btn" data-action="php-save" style="font-size:.85rem;padding:.4rem .9rem;">💾 <f:translate key="common.save" extensionName="GuardianTypo3"/></button>
+            <span id="phpMsg" class="updater-inline-msg" role="status" aria-live="polite"></span>
+        </div>
+    </div>
+
+</div>
+
+</html>

@@ -1,0 +1,223 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<div class="updater-tab-content" data-tab-panel="backup">
+
+    <f:comment>── Manual backup ──</f:comment>
+    <div class="updater-card">
+        <h3><f:translate key="backup.title" extensionName="GuardianTypo3" /></h3>
+        <p style="color:var(--updater-text-muted);font-size:.9rem;margin:.4rem 0 1rem;">
+            <f:translate key="backup.description" extensionName="GuardianTypo3" />
+        </p>
+        <fieldset class="updater-backup-options">
+            <legend><f:translate key="backup.contents" extensionName="GuardianTypo3" /></legend>
+            <label>
+                <input type="checkbox" checked disabled>
+                <div>
+                    <strong><f:translate key="backup.coreFiles" extensionName="GuardianTypo3" /></strong>
+                    <div class="desc"><f:translate key="backup.coreFilesDescription" extensionName="GuardianTypo3" /></div>
+                </div>
+            </label>
+            <label>
+                <input type="checkbox" id="updaterBkpVendor" checked>
+                <div>
+                    <strong>vendor/</strong> <f:translate key="backup.directory" extensionName="GuardianTypo3" />
+                    <div class="desc"><f:translate key="backup.vendorDescription" extensionName="GuardianTypo3" /></div>
+                </div>
+            </label>
+            <label>
+                <input type="checkbox" id="updaterBkpTemplates" checked>
+                <div>
+                    <strong>config/</strong> <f:translate key="backup.configLabel" extensionName="GuardianTypo3" />
+                    <div class="desc"><f:translate key="backup.configDescription" extensionName="GuardianTypo3" /></div>
+                </div>
+            </label>
+            <label>
+                <input type="checkbox" id="updaterBkpFileadmin">
+                <div>
+                    <strong><f:translate key="backup.fileadminLabel" extensionName="GuardianTypo3" /></strong>
+                    <span style="color:var(--updater-tag-abandoned-fg);font-size:.75rem;"><f:translate key="backup.fileadminLarge" extensionName="GuardianTypo3" /></span>
+                    <div class="desc"><f:translate key="backup.fileadminDescription" extensionName="GuardianTypo3" /></div>
+                </div>
+            </label>
+            <label>
+                <input type="checkbox" id="updaterBkpAssets">
+                <div>
+                    <strong>public/_assets/</strong> <f:translate key="backup.directory" extensionName="GuardianTypo3" />
+                    <div class="desc"><f:translate key="backup.assetsDescription" extensionName="GuardianTypo3" /></div>
+                </div>
+            </label>
+        </fieldset>
+
+        <button type="button" class="updater-btn" id="updaterBackupBtn" data-action="backup-create">💾 <f:translate key="backup.create" extensionName="GuardianTypo3" /></button>
+        <div id="updaterBackupResult" style="margin-top:1rem;"></div>
+
+        <div id="updaterBackupList" style="margin-top:1.2rem;">
+            <div class="updater-empty"><f:translate key="backup.empty" extensionName="GuardianTypo3" /></div>
+        </div>
+    </div>
+
+    <f:comment>── Scheduled backups (Pro) ──</f:comment>
+    <div class="updater-card" id="updaterScheduledCard">
+        <h3><f:translate key="backup.schedule.title" extensionName="GuardianTypo3" /></h3>
+        <div id="updaterScheduledLockNotice" style="display:none;background:var(--updater-result-warn-bg);color:var(--updater-result-warn-fg);padding:.7rem .9rem;border-radius:4px;font-size:.85rem;line-height:1.5;margin-bottom:.8rem;">
+            🔒 <f:translate key="backup.schedule.locked" extensionName="GuardianTypo3" />
+        </div>
+        <p style="color:var(--updater-text-muted);font-size:.9rem;margin:.4rem 0 1rem;">
+            <f:translate key="backup.schedule.description" extensionName="GuardianTypo3" />
+        </p>
+
+        <div class="updater-sched-grid">
+            <div class="updater-sched-block">
+                <h4>🗄️ <f:translate key="backup.schedule.miniTitle" extensionName="GuardianTypo3" /></h4>
+                <div class="updater-sched-desc"><f:translate key="backup.schedule.miniDescription" extensionName="GuardianTypo3" /></div>
+                <div class="updater-sched-toggle">
+                    <input type="checkbox" id="schedMiniEnabled">
+                    <label for="schedMiniEnabled"><f:translate key="backup.schedule.miniEnabled" extensionName="GuardianTypo3" /></label>
+                </div>
+                <div class="updater-sched-row">
+                    <label><f:translate key="backup.schedule.frequency" extensionName="GuardianTypo3" /></label>
+                    <select id="schedMiniFrequency">
+                        <optgroup label="{f:translate(key: 'backup.schedule.testingGroup', extensionName: 'GuardianTypo3')}">
+                            <option value="5min"><f:translate key="backup.schedule.every5Minutes" extensionName="GuardianTypo3" /></option>
+                            <option value="15min"><f:translate key="backup.schedule.every15Minutes" extensionName="GuardianTypo3" /></option>
+                            <option value="hourly"><f:translate key="backup.schedule.hourly" extensionName="GuardianTypo3" /></option>
+                        </optgroup>
+                        <optgroup label="{f:translate(key: 'backup.schedule.productionGroup', extensionName: 'GuardianTypo3')}">
+                            <option value="daily"><f:translate key="backup.schedule.daily" extensionName="GuardianTypo3" /></option>
+                            <option value="weekly"><f:translate key="backup.schedule.weekly" extensionName="GuardianTypo3" /></option>
+                            <option value="monthly"><f:translate key="backup.schedule.monthly" extensionName="GuardianTypo3" /></option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="updater-sched-row"><label><f:translate key="backup.schedule.time" extensionName="GuardianTypo3" /></label><input type="time" id="schedMiniTime"></div>
+                <div class="updater-sched-row" id="schedMiniWeekdayRow" style="display:none;">
+                    <label><f:translate key="backup.schedule.weekday" extensionName="GuardianTypo3" /></label>
+                    <select id="schedMiniWeekday">
+                        <option value="0"><f:translate key="backup.schedule.sunday" extensionName="GuardianTypo3" /></option><option value="1"><f:translate key="backup.schedule.monday" extensionName="GuardianTypo3" /></option><option value="2"><f:translate key="backup.schedule.tuesday" extensionName="GuardianTypo3" /></option>
+                        <option value="3"><f:translate key="backup.schedule.wednesday" extensionName="GuardianTypo3" /></option><option value="4"><f:translate key="backup.schedule.thursday" extensionName="GuardianTypo3" /></option><option value="5"><f:translate key="backup.schedule.friday" extensionName="GuardianTypo3" /></option><option value="6"><f:translate key="backup.schedule.saturday" extensionName="GuardianTypo3" /></option>
+                    </select>
+                </div>
+                <div class="updater-sched-row" id="schedMiniDomRow" style="display:none;">
+                    <label><f:translate key="backup.schedule.dayOfMonth" extensionName="GuardianTypo3" /></label><input type="number" id="schedMiniDom" min="1" max="28">
+                </div>
+                <div class="updater-sched-row">
+                    <label><f:translate key="backup.schedule.keepLast" extensionName="GuardianTypo3" /></label><input type="number" id="schedMiniRetention" min="1" max="999">
+                    <span style="color:var(--updater-text-muted);font-size:.8rem;"><f:translate key="backup.title" extensionName="GuardianTypo3" /></span>
+                </div>
+                <div id="schedMiniState" style="margin-top:.8rem;"></div>
+                <div class="updater-sched-actions">
+                    <button type="button" data-action="schedule-run-mini" class="updater-btn updater-btn-secondary" style="font-size:.8rem;padding:.4rem .8rem;">▶ <f:translate key="backup.schedule.runMini" extensionName="GuardianTypo3" /></button>
+                </div>
+            </div>
+
+            <div class="updater-sched-block">
+                <h4>📦 <f:translate key="backup.schedule.fullTitle" extensionName="GuardianTypo3" /></h4>
+                <div class="updater-sched-desc"><f:translate key="backup.schedule.fullDescription" extensionName="GuardianTypo3" /></div>
+                <div class="updater-sched-toggle">
+                    <input type="checkbox" id="schedFullEnabled">
+                    <label for="schedFullEnabled"><f:translate key="backup.schedule.fullEnabled" extensionName="GuardianTypo3" /></label>
+                </div>
+                <div class="updater-sched-row">
+                    <label><f:translate key="backup.schedule.frequency" extensionName="GuardianTypo3" /></label>
+                    <select id="schedFullFrequency">
+                        <optgroup label="{f:translate(key: 'backup.schedule.testingGroup', extensionName: 'GuardianTypo3')}">
+                            <option value="5min"><f:translate key="backup.schedule.every5Minutes" extensionName="GuardianTypo3" /></option><option value="15min"><f:translate key="backup.schedule.every15Minutes" extensionName="GuardianTypo3" /></option><option value="hourly"><f:translate key="backup.schedule.hourly" extensionName="GuardianTypo3" /></option>
+                        </optgroup>
+                        <optgroup label="{f:translate(key: 'backup.schedule.productionGroup', extensionName: 'GuardianTypo3')}">
+                            <option value="daily"><f:translate key="backup.schedule.daily" extensionName="GuardianTypo3" /></option><option value="weekly"><f:translate key="backup.schedule.weekly" extensionName="GuardianTypo3" /></option><option value="monthly"><f:translate key="backup.schedule.monthly" extensionName="GuardianTypo3" /></option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="updater-sched-row"><label><f:translate key="backup.schedule.time" extensionName="GuardianTypo3" /></label><input type="time" id="schedFullTime"></div>
+                <div class="updater-sched-row" id="schedFullWeekdayRow" style="display:none;">
+                    <label><f:translate key="backup.schedule.weekday" extensionName="GuardianTypo3" /></label>
+                    <select id="schedFullWeekday">
+                        <option value="0"><f:translate key="backup.schedule.sunday" extensionName="GuardianTypo3" /></option><option value="1"><f:translate key="backup.schedule.monday" extensionName="GuardianTypo3" /></option><option value="2"><f:translate key="backup.schedule.tuesday" extensionName="GuardianTypo3" /></option>
+                        <option value="3"><f:translate key="backup.schedule.wednesday" extensionName="GuardianTypo3" /></option><option value="4"><f:translate key="backup.schedule.thursday" extensionName="GuardianTypo3" /></option><option value="5"><f:translate key="backup.schedule.friday" extensionName="GuardianTypo3" /></option><option value="6"><f:translate key="backup.schedule.saturday" extensionName="GuardianTypo3" /></option>
+                    </select>
+                </div>
+                <div class="updater-sched-row" id="schedFullDomRow" style="display:none;">
+                    <label><f:translate key="backup.schedule.dayOfMonth" extensionName="GuardianTypo3" /></label><input type="number" id="schedFullDom" min="1" max="28">
+                </div>
+                <div class="updater-sched-row">
+                    <label><f:translate key="backup.schedule.keepLast" extensionName="GuardianTypo3" /></label><input type="number" id="schedFullRetention" min="1" max="999">
+                    <span style="color:var(--updater-text-muted);font-size:.8rem;"><f:translate key="backup.title" extensionName="GuardianTypo3" /></span>
+                </div>
+                <div class="updater-sched-components">
+                    <strong style="font-size:.8rem;color:var(--updater-text);"><f:translate key="backup.schedule.include" extensionName="GuardianTypo3" /></strong>
+                    <label><input type="checkbox" id="schedFullCompVendor"> vendor/</label>
+                    <label><input type="checkbox" id="schedFullCompTemplates"> config/ <f:translate key="backup.schedule.configAndTemplates" extensionName="GuardianTypo3" /></label>
+                    <label><input type="checkbox" id="schedFullCompFiles"> fileadmin/
+                        <span style="color:var(--updater-tag-abandoned-fg);font-size:.7rem;"><f:translate key="backup.schedule.fileadminRisk" extensionName="GuardianTypo3" /></span>
+                    </label>
+                    <div id="schedFilesWarning" style="display:none;background:var(--updater-result-warn-bg);color:var(--updater-result-warn-fg);padding:.5rem .7rem;border-radius:3px;margin:.4rem 0;font-size:.75rem;line-height:1.4;">
+                        ⚠️ <f:translate key="backup.schedule.fileadminWarning" extensionName="GuardianTypo3" />
+                    </div>
+                    <label><input type="checkbox" id="schedFullCompAssets"> public/_assets/</label>
+                </div>
+                <div id="schedFullState" style="margin-top:.8rem;"></div>
+                <div class="updater-sched-actions">
+                    <button type="button" data-action="schedule-run-full" class="updater-btn updater-btn-secondary" style="font-size:.8rem;padding:.4rem .8rem;">▶ <f:translate key="backup.schedule.runFull" extensionName="GuardianTypo3" /></button>
+                </div>
+            </div>
+        </div>
+
+        <div class="updater-sched-block" style="margin-top:1rem;">
+            <h4><f:translate key="backup.schedule.storageNotifications" extensionName="GuardianTypo3" /></h4>
+            <div class="updater-sched-row">
+                <label><f:translate key="backup.schedule.storagePath" extensionName="GuardianTypo3" /></label>
+                <input type="text" id="schedStoragePath" placeholder="{f:translate(key: 'backup.schedule.storagePlaceholder', extensionName: 'GuardianTypo3')}">
+            </div>
+            <div style="color:var(--updater-text-muted);font-size:.75rem;margin:.2rem 0 .8rem 95px;">
+                <f:translate key="backup.schedule.storageHelp" extensionName="GuardianTypo3" />
+            </div>
+            <div class="updater-sched-row"><label><f:translate key="backup.notifications.recipient" extensionName="GuardianTypo3" /></label><input type="email" id="schedEmail" placeholder="admin@example.com"></div>
+            <div class="updater-sched-row"><label><f:translate key="backup.notifications.senderEmail" extensionName="GuardianTypo3" /></label><input type="email" id="schedSenderEmail" placeholder="{f:translate(key: 'backup.notifications.senderPlaceholder', extensionName: 'GuardianTypo3')}"></div>
+            <div class="updater-sched-row"><label><f:translate key="backup.notifications.senderName" extensionName="GuardianTypo3" /></label><input type="text" id="schedSenderName" placeholder="Guardian" maxlength="100"></div>
+            <div style="font-size:.75rem;color:var(--updater-text-muted);margin:.2rem 0 .8rem 95px;">
+                <f:translate key="backup.notifications.senderHelp" extensionName="GuardianTypo3" />
+            </div>
+            <div style="margin-left:95px;">
+                <label class="updater-pkg-checkbox" style="margin-right:1rem;"><input type="checkbox" id="schedNotifySuccess"> <f:translate key="backup.notifications.onSuccess" extensionName="GuardianTypo3" /></label>
+                <label class="updater-pkg-checkbox"><input type="checkbox" id="schedNotifyFailure"> <f:translate key="backup.notifications.onFailure" extensionName="GuardianTypo3" /></label>
+            </div>
+            <div style="margin-top:.8rem;margin-left:95px;">
+                <button type="button" data-action="backup-test-email" class="updater-btn updater-btn-secondary" style="font-size:.8rem;padding:.4rem .8rem;">✉️ <f:translate key="backup.notifications.testEmail" extensionName="GuardianTypo3" /></button>
+                <div id="updaterTestEmailResult" style="margin-top:.6rem;"></div>
+            </div>
+        </div>
+
+        <div class="updater-sched-actions" style="margin-top:1rem;">
+            <button type="button" data-action="schedule-save" class="updater-btn">💾 <f:translate key="backup.schedule.save" extensionName="GuardianTypo3" /></button>
+        </div>
+
+        <div class="updater-sched-cron-note">
+            <strong>⚙️ <f:translate key="backup.schedule.triggerTitle" extensionName="GuardianTypo3" /></strong>
+            <p style="margin:.5rem 0;font-size:.85rem;">
+                <f:translate key="backup.schedule.triggerDescription" extensionName="GuardianTypo3" />
+            </p>
+            <details class="updater-cron-details">
+                <summary><strong><f:translate key="backup.schedule.cronTitle" extensionName="GuardianTypo3" /></strong> <f:translate key="backup.schedule.cronRecommended" extensionName="GuardianTypo3" /> <span class="updater-cron-badge"><f:translate key="backup.schedule.additionalSetup" extensionName="GuardianTypo3" /></span></summary>
+                <div class="updater-cron-detail-body">
+                    <p><f:translate key="backup.schedule.cronInstruction" extensionName="GuardianTypo3" /></p>
+                    <pre class="updater-cron-cmd">*/5 * * * * /usr/bin/php {projectDir}/vendor/bin/typo3 guardian:backup:run-due</pre>
+                    <p style="font-size:.75rem;color:var(--updater-text-muted);"><f:translate key="backup.schedule.cronPhpHint" extensionName="GuardianTypo3" /></p>
+                    <h5 class="updater-cron-h5">🔵 Plesk</h5>
+                    <ol>
+                        <li><f:translate key="backup.schedule.pleskOpen" extensionName="GuardianTypo3" /></li>
+                        <li><f:translate key="backup.schedule.pleskCommand" extensionName="GuardianTypo3" /> <code class="updater-cron-inline">vendor/bin/typo3 guardian:backup:run-due</code></li>
+                        <li><f:translate key="backup.schedule.pleskSchedule" extensionName="GuardianTypo3" /> <code class="updater-cron-inline">*/5 * * * *</code></li>
+                    </ol>
+                    <h5 class="updater-cron-h5">⚫ SSH / crontab</h5>
+                    <pre class="updater-cron-cmd">*/5 * * * * /usr/bin/php /full/path/to/site/vendor/bin/typo3 guardian:backup:run-due &gt;/dev/null 2&gt;&amp;1</pre>
+                </div>
+            </details>
+            <p style="font-size:.75rem;color:var(--updater-text-muted);margin-top:.6rem;">
+                <f:translate key="backup.schedule.reference" extensionName="GuardianTypo3" />: <a href="https://docs.typo3.org/" target="_blank" rel="noopener"><f:translate key="backup.schedule.schedulerDocumentation" extensionName="GuardianTypo3" /></a>
+            </p>
+        </div>
+    </div>
+
+</div>
+
+</html>

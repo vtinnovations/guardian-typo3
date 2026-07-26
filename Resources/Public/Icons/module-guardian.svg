@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Guardian">
+  <path d="M32 4 12 12v16c0 12.4 8.2 23.9 20 28 11.8-4.1 20-15.6 20-28V12L32 4Z"
+        fill="none" stroke="#f47c00" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M23 32.5 29.5 39 42 25.5" fill="none" stroke="#f47c00" stroke-width="4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

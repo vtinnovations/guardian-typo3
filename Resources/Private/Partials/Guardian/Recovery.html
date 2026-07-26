@@ -1,0 +1,115 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<div class="updater-tab-content" data-tab-panel="recovery">
+
+    <f:comment>── Standalone recovery panel management ──</f:comment>
+    <div class="updater-card" style="border-left:4px solid #f47c00;">
+        <h3>🆘 <f:translate key="recovery.panel.title" extensionName="GuardianTypo3"/></h3>
+        <p style="color:var(--updater-text-muted);font-size:.9rem;margin:.4rem 0 1rem;line-height:1.5;">
+            <f:translate key="recovery.panel.description" extensionName="GuardianTypo3"/>
+        </p>
+
+        <div id="guardianPanelState" class="updater-panel-state"><f:translate key="js.loading" extensionName="GuardianTypo3"/></div>
+
+        <div class="updater-sched-row" style="margin-top:.9rem;">
+            <label><f:translate key="recovery.panelFilename.label" extensionName="GuardianTypo3"/></label>
+            <input type="text" id="guardianPanelFilename" placeholder="_guardian-recovery.php" style="font-family:monospace;" maxlength="64">
+            <button type="button" class="updater-btn updater-btn-secondary" data-action="panel-save-filename">💾 <f:translate key="common.save" extensionName="GuardianTypo3"/></button>
+        </div>
+        <div style="margin-left:95px;margin-top:.3rem;font-size:.78rem;color:var(--updater-text-muted);">
+            <f:translate key="recovery.panelFilename.example" extensionName="GuardianTypo3"/>
+            <br><f:translate key="recovery.panel.stepOpen" extensionName="GuardianTypo3"/>
+            <a id="guardianPanelUrl" href="#" target="_blank" rel="noopener" style="color:var(--updater-text-link);font-family:monospace;">/_guardian-recovery.php</a>
+        </div>
+
+        <div class="updater-sched-actions" style="margin-top:1rem;">
+            <button type="button" class="updater-btn" data-action="panel-enable">✅ <f:translate key="recovery.panel.enable" extensionName="GuardianTypo3"/></button>
+            <button type="button" class="updater-btn updater-btn-delete" data-action="panel-disable">🚫 <f:translate key="recovery.panel.disable" extensionName="GuardianTypo3"/></button>
+            <span id="guardianPanelMsg" class="updater-inline-msg"></span>
+        </div>
+
+        <div style="background:rgba(248,195,64,.1);border-left:3px solid #c89a3a;padding:.6rem .9rem;font-size:.82rem;line-height:1.5;margin-top:1rem;border-radius:3px;">
+            <strong>⚠️ <f:translate key="recovery.panel.storeWarning" extensionName="GuardianTypo3"/></strong>
+        </div>
+    </div>
+
+    <f:comment>── Access token (hashed store, reveal-once) ──</f:comment>
+    <div class="updater-card">
+        <h3>🔑 <f:translate key="recovery.token.title" extensionName="GuardianTypo3"/></h3>
+        <p style="color:var(--updater-text-muted);font-size:.9rem;margin:.4rem 0 1rem;line-height:1.5;">
+            <f:translate key="recovery.token.description" extensionName="GuardianTypo3"/>
+        </p>
+        <div id="guardianTokenState" style="font-size:.88rem;margin-bottom:.7rem;color:var(--updater-text-muted);"><f:translate key="js.loading" extensionName="GuardianTypo3"/></div>
+        <div id="guardianTokenReveal"></div>
+        <div class="updater-sched-actions" style="margin-top:.8rem;">
+            <button type="button" class="updater-btn" data-action="panel-token-generate">✨ <f:translate key="recovery.token.generate" extensionName="GuardianTypo3"/></button>
+            <button type="button" class="updater-btn updater-btn-secondary" data-action="panel-token-rotate">♻️ <f:translate key="recovery.token.rotate" extensionName="GuardianTypo3"/></button>
+        </div>
+        <details style="margin-top:1.2rem;">
+            <summary style="cursor:pointer;font-size:.85rem;color:var(--updater-text-muted);">▸ <f:translate key="recovery.token.envTitle" extensionName="GuardianTypo3"/></summary>
+            <div style="font-size:.85rem;padding:.8rem 0;line-height:1.6;color:var(--updater-text);">
+                <p><f:translate key="recovery.token.envInstruction" extensionName="GuardianTypo3"/></p>
+                <pre class="updater-cron-cmd">GUARDIAN_RECOVERY_TOKEN=your-very-long-secret-token-here</pre>
+                <p><f:translate key="recovery.token.envHelp" extensionName="GuardianTypo3"/></p>
+            </div>
+        </details>
+    </div>
+
+    <f:comment>── In-backend recovery runner (reuses the shared recovery services) ──</f:comment>
+    <div class="updater-card" style="background:rgba(95,169,215,.08);border-left:4px solid #5fa9d7;">
+        <h3 style="margin-top:0;">↩️ <f:translate key="recovery.restore.title" extensionName="GuardianTypo3"/></h3>
+        <p style="color:var(--updater-text);font-size:.9rem;margin:.3rem 0 .8rem;line-height:1.55;">
+            <f:translate key="recovery.restore.description" extensionName="GuardianTypo3"/>
+        </p>
+
+        <div id="guardianRecoveryInterrupted" class="updater-card" style="display:none;border-left:4px solid var(--updater-danger);"></div>
+
+        <label style="font-size:.85rem;color:var(--updater-text-muted);"><f:translate key="recovery.backups.title" extensionName="GuardianTypo3"/></label>
+        <div id="guardianRecoveryBackups" class="updater-backup-list"><f:translate key="js.loading" extensionName="GuardianTypo3"/></div>
+
+        <div id="guardianRecoveryComponents" style="margin-top:.8rem;"></div>
+
+        <label style="font-size:.85rem;color:var(--updater-text-muted);margin-top:.7rem;display:block;"><f:translate key="recovery.vendorStrategy" extensionName="GuardianTypo3"/></label>
+        <select id="guardianVendorStrategy" style="width:100%;max-width:520px;padding:.45rem;">
+            <option value="rebuild"><f:translate key="recovery.vendor.rebuild" extensionName="GuardianTypo3"/></option>
+            <option value="skip"><f:translate key="recovery.vendor.skip" extensionName="GuardianTypo3"/></option>
+            <option value="archived"><f:translate key="recovery.vendor.archived" extensionName="GuardianTypo3"/></option>
+        </select>
+        <div style="background:rgba(248,195,64,.1);border-left:3px solid #c89a3a;padding:.5rem .8rem;font-size:.82rem;margin-top:.5rem;border-radius:3px;">
+            ⚠️ <f:translate key="recovery.vendor.warning" extensionName="GuardianTypo3"/>
+        </div>
+
+        <div class="updater-sched-actions" style="margin-top:.6rem;">
+            <button type="button" class="updater-btn updater-btn-secondary" data-action="recovery-preflight" disabled>🔍 <f:translate key="recovery.preflight" extensionName="GuardianTypo3"/></button>
+        </div>
+
+        <div id="guardianRecoveryChecks" style="margin-top:.6rem;"></div>
+
+        <div id="guardianRecoveryConfirmBox" style="display:none;margin-top:.8rem;">
+            <div class="updater-sched-actions">
+                <button type="button" class="updater-btn" data-action="recovery-dryrun">🧪 <f:translate key="recovery.dryRun" extensionName="GuardianTypo3"/></button>
+                <span id="guardianRecoveryDryMsg" class="updater-inline-msg"></span>
+            </div>
+            <div id="guardianRecoveryDry" style="margin-top:.5rem;"></div>
+
+            <label class="updater-chk" style="margin-top:.6rem;"><input type="checkbox" id="guardianRecoverySnapshot" checked disabled> <f:translate key="recovery.snapshot" extensionName="GuardianTypo3"/></label>
+            <div id="guardianVendorPhraseWrap" style="display:none;margin-top:.4rem;">
+                <label style="font-size:.85rem;color:var(--updater-danger);display:block;"><f:translate key="recovery.vendor.confirmPhrase" extensionName="GuardianTypo3"/></label>
+                <input type="text" id="guardianVendorPhrase" placeholder="RESTORE VENDOR" style="font-family:monospace;max-width:260px;">
+            </div>
+            <label style="font-size:.85rem;color:var(--updater-text-muted);margin-top:.4rem;display:block;"><f:translate key="recovery.confirmPhrase" extensionName="GuardianTypo3"/></label>
+            <input type="text" id="guardianRecoveryPhrase" placeholder="RECOVER" style="font-family:monospace;max-width:220px;">
+            <label class="updater-chk" style="margin-top:.4rem;"><input type="checkbox" id="guardianRecoveryConfirm"> <f:translate key="recovery.confirmBox" extensionName="GuardianTypo3"/></label>
+            <div class="updater-sched-actions" style="margin-top:.6rem;">
+                <button type="button" class="updater-btn updater-btn-delete" data-action="recovery-run" disabled>🚨 <f:translate key="recovery.run" extensionName="GuardianTypo3"/></button>
+                <span id="guardianRecoveryMsg" class="updater-inline-msg"></span>
+            </div>
+        </div>
+
+        <div id="guardianRecoveryResult" style="margin-top:.7rem;"></div>
+        <pre id="guardianRecoveryLog" class="updater-cron-cmd" style="display:none;max-height:280px;overflow:auto;white-space:pre-wrap;"></pre>
+    </div>
+
+</div>
+
+</html>

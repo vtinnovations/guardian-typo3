@@ -1,0 +1,55 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<f:comment>
+    Guardian — faithful single-page port of the original Contao Guardian backend
+    module. Native TYPO3 module chrome wraps this; everything below is the
+    original interface with the original `.updater-*` structure and five tabs.
+</f:comment>
+
+<div id="guardianModule" class="guardian-module{f:if(condition: isPro, then: '', else: ' updater-not-pro')}{f:if(condition: isLicensed, then: '', else: ' updater-no-license')}">
+
+    <script type="application/json" id="guardian-config">{configJson -> f:format.raw()}</script>
+
+    <h1 class="guardian-product-heading"><span class="guardian-product-heading__mark" aria-hidden="true">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Guardian">
+        <path d="M32 4 12 12v16c0 12.4 8.2 23.9 20 28 11.8-4.1 20-15.6 20-28V12L32 4Z" fill="none" stroke="#f47c00" stroke-width="4" stroke-linejoin="round"></path>
+        <path d="M23 32.5 29.5 39 42 25.5" fill="none" stroke="#f47c00" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+</span><span>{headline}</span></h1>
+
+    <f:render partial="Guardian/Tabs" arguments="{_all}"/>
+
+    <f:render partial="Guardian/Dashboard"  arguments="{_all}"/>
+    <f:render partial="Guardian/Update"     arguments="{_all}"/>
+    <f:render partial="Guardian/Backup"     arguments="{_all}"/>
+    <f:render partial="Guardian/Recovery"   arguments="{_all}"/>
+    <f:render partial="Guardian/Extensions" arguments="{_all}"/>
+    <f:render partial="Guardian/Settings"   arguments="{_all}"/>
+
+    <f:comment>Upgrade dialog (shown when a Free/no-license user clicks a locked tab).</f:comment>
+    <div class="updater-upgrade-modal" id="updaterUpgradeModal">
+        <div class="box">
+            <h3 id="updaterUpgradeTitle">🔒 <f:translate key="modal.pro.title" extensionName="GuardianTypo3"/></h3>
+            <p id="updaterUpgradeBody">
+                <f:translate key="modal.pro.body" extensionName="GuardianTypo3"/>
+            </p>
+            <p><f:translate key="modal.pro.unlock" extensionName="GuardianTypo3"/></p>
+            <ul style="margin:.4rem 0 .6rem 1.1rem;padding:0;color:var(--updater-text-muted);font-size:.88rem;line-height:1.6;">
+                <li><f:translate key="feature.updateJobs" extensionName="GuardianTypo3"/></li>
+                <li><f:translate key="feature.recovery" extensionName="GuardianTypo3"/></li>
+                <li><f:translate key="feature.scheduledBackups" extensionName="GuardianTypo3"/></li>
+                <li><f:translate key="feature.recoveryPanel" extensionName="GuardianTypo3"/></li>
+            </ul>
+            <p style="font-size:.82rem;">
+                <f:translate key="modal.license.obtain" extensionName="GuardianTypo3"/> <a href="https://www.v-t.one" target="_blank" rel="noopener" style="color:var(--updater-text-link);font-weight:600;">v-t.one</a>.
+            </p>
+            <div class="actions">
+                <button type="button" class="updater-btn updater-btn-secondary" data-action="upgrade-close"><f:translate key="common.close" extensionName="GuardianTypo3"/></button>
+                <button type="button" class="updater-btn" data-action="goto-settings">→ <f:translate key="common.goToSettings" extensionName="GuardianTypo3"/></button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+</html>

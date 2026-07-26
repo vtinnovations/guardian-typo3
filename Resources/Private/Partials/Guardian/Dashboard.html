@@ -1,0 +1,89 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<div class="updater-tab-content" data-tab-panel="dashboard">
+
+    <f:comment>── Plan badge (Keine / Free / Pro) ──</f:comment>
+    <div class="updater-card">
+        <div class="updater-plan-card">
+            <div>
+                <div id="updaterPlanBadge" class="updater-plan-badge {planClass}">
+                    <f:if condition="{isPro}">
+                        <f:then>⭐ <f:translate key="js.plan.pro" extensionName="GuardianTypo3"/></f:then>
+                        <f:else>
+                            <f:if condition="{isLicensed}"><f:then>🆓 <f:translate key="js.plan.free" extensionName="GuardianTypo3"/></f:then><f:else>🚫 <f:translate key="js.plan.none" extensionName="GuardianTypo3"/></f:else></f:if>
+                        </f:else>
+                    </f:if>
+                </div>
+                <p style="margin:.6rem 0 0;font-size:.85rem;color:var(--updater-text-muted);max-width:520px;line-height:1.5;">
+                    <span id="updaterPlanTagline">
+                        <f:if condition="{isPro}">
+                            <f:then><f:translate key="js.plan.proDescription" extensionName="GuardianTypo3"/></f:then>
+                            <f:else>
+                                <f:if condition="{isLicensed}">
+                                    <f:then><f:translate key="js.plan.freeDescription" extensionName="GuardianTypo3"/></f:then>
+                                    <f:else><f:translate key="js.plan.noneDescription" extensionName="GuardianTypo3"/></f:else>
+                                </f:if>
+                            </f:else>
+                        </f:if>
+                    </span>
+                </p>
+            </div>
+            <div style="flex:1;min-width:220px;">
+                <ul id="updaterPlanFeatures" class="updater-plan-features">
+                    <li class="{f:if(condition: isLicensed, then: 'on', else: 'off')}"><f:if condition="{isLicensed}"><f:then>✓</f:then><f:else>🔒</f:else></f:if> <f:translate key="feature.manualBackup" extensionName="GuardianTypo3"/></li>
+                    <li class="{f:if(condition: isPro, then: 'on', else: 'off')}"><f:if condition="{isPro}"><f:then>✓</f:then><f:else>🔒</f:else></f:if> <f:translate key="feature.updateJobs" extensionName="GuardianTypo3"/></li>
+                    <li class="{f:if(condition: isPro, then: 'on', else: 'off')}"><f:if condition="{isPro}"><f:then>✓</f:then><f:else>🔒</f:else></f:if> <f:translate key="feature.recovery" extensionName="GuardianTypo3"/></li>
+                    <li class="{f:if(condition: isPro, then: 'on', else: 'off')}"><f:if condition="{isPro}"><f:then>✓</f:then><f:else>🔒</f:else></f:if> <f:translate key="feature.scheduledBackups" extensionName="GuardianTypo3"/></li>
+                    <li class="{f:if(condition: isPro, then: 'on', else: 'off')}"><f:if condition="{isPro}"><f:then>✓</f:then><f:else>🔒</f:else></f:if> <f:translate key="feature.recoveryPanel" extensionName="GuardianTypo3"/></li>
+                </ul>
+                <f:if condition="!{isPro}">
+                    <div style="margin-top:.6rem;">
+                        <button type="button" class="updater-btn" data-action="goto-settings" style="font-size:.82rem;padding:.4rem .9rem;">
+                            <f:if condition="{isLicensed}"><f:then>⭐ <f:translate key="dashboard.upgrade" extensionName="GuardianTypo3"/></f:then><f:else>🔑 <f:translate key="dashboard.enterLicense" extensionName="GuardianTypo3"/></f:else></f:if>
+                        </button>
+                    </div>
+                </f:if>
+            </div>
+        </div>
+    </div>
+
+    <f:comment>── Stats grid ──</f:comment>
+    <div class="updater-grid">
+        <div class="updater-stat">
+            <div class="label"><f:translate key="dashboard.typo3Version" extensionName="GuardianTypo3"/></div>
+            <div class="value">{typo3Version}</div>
+        </div>
+        <div class="updater-stat">
+            <div class="label"><f:translate key="dashboard.installedPackages" extensionName="GuardianTypo3"/></div>
+            <div class="value">{packageCount}</div>
+        </div>
+        <div class="updater-stat">
+            <div class="label"><f:translate key="dashboard.availableBackups" extensionName="GuardianTypo3"/></div>
+            <div class="value">{backupCount}</div>
+        </div>
+    </div>
+
+    <f:comment>── Status card ──</f:comment>
+    <div class="updater-card">
+        <h3><f:translate key="dashboard.status.title" extensionName="GuardianTypo3"/></h3>
+        <span class="updater-status-badge updater-status-idle">✓ <f:translate key="dashboard.status.idle" extensionName="GuardianTypo3"/></span>
+        <div style="font-size:.85rem;color:var(--updater-text-muted);margin-top:.5rem;">
+            <f:translate key="dashboard.status.description" extensionName="GuardianTypo3"/>
+        </div>
+    </div>
+
+    <f:comment>── Pre-Update Analysis (read-only) ──</f:comment>
+    <div class="updater-card">
+        <h3><f:translate key="dashboard.analysis.title" extensionName="GuardianTypo3"/></h3>
+        <p style="color:var(--updater-text-muted);font-size:.9rem;margin:.4rem 0 1rem;">
+            <f:translate key="dashboard.analysis.description" extensionName="GuardianTypo3"/>
+        </p>
+        <button type="button" class="updater-btn" id="updaterAnalyseBtn" data-action="analyse">🔍 <f:translate key="dashboard.analysis.start" extensionName="GuardianTypo3"/></button>
+        <div id="updaterAnalysisResult" style="margin-top:1rem;"></div>
+    </div>
+
+    <f:comment>── Package management moved to the dedicated Extensions tab (Pro). ──</f:comment>
+
+</div>
+
+</html>
