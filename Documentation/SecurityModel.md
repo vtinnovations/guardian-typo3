@@ -1,14 +1,22 @@
 # Security Model — Guardian for TYPO3
 
-Guardian is, by nature, a high-privilege tool: fully built it can run Composer,
-dump and restore databases, delete files and toggle maintenance mode. The
-security model is therefore central, not an afterthought. This document states
-the required controls, what Phase 1 already enforces, and what each later phase
-must implement before its feature is exposed.
+> **Current status (supersedes the historical phased wording below).** Guardian
+> is fully implemented: it runs Composer updates, creates and restores backups,
+> executes detached PHP worker processes, and ships the standalone recovery
+> panel. The controls described in this document are the ones that are now
+> **enforced in production** — administrator-only + in-code assertion on every
+> endpoint, POST + CSRF on every mutation, `symfony/process` argument-array
+> execution (never shell strings), path containment to `var/guardian/`,
+> ZIP-safety inspection, mandatory pre-change backups with automatic rollback,
+> and secret redaction. The `README.md` "Security architecture" section is the
+> authoritative summary. The phase-by-phase framing that follows is retained for
+> historical context only; where it says a control is "not yet" present or a
+> feature is "out of scope for Phase 1", read it as **implemented today**.
 
-Phase 1 ships **no destructive capability at all**, which is itself the strongest
-possible control for this stage: there is no write endpoint, no process
-execution, and no recovery panel.
+Guardian is, by nature, a high-privilege tool: it can run Composer, dump and
+restore databases, delete files and toggle maintenance mode. The security model
+is therefore central, not an afterthought. This document states the required
+controls and how each is enforced.
 
 ## 1. Authorization
 

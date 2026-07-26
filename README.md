@@ -1,132 +1,369 @@
+<!--
+  This file is part of the "Guardian for TYPO3" extension for TYPO3 CMS.
+
+  @author    V&T Innovations Team
+  @license   LGPL-3.0-or-later
+  @copyright V&T Innovations 2026 - 2028
+-->
+
 # Guardian for TYPO3
 
 *🇩🇪 [Deutsche Version](README.de.md)*
 
-**Admin update, backup & recovery cockpit for TYPO3 13.4 and 14** — by
-[V&T Innovations](https://www.v-t.one).
+**Admin cockpit for Composer updates, backups, recovery and extension
+management in TYPO3 13.4 and 14** — by [V&T Innovations](https://www.v-t.one).
 
-Guardian is being ported from the Contao 5 bundle of the same name to a native
-TYPO3 extension supporting **TYPO3 13.4.9 through 14.x** from a single package.
-Its goal is to keep a TYPO3 installation updatable and recoverable: Composer
-updates, automatic backups, restore/rollback, and a standalone recovery panel
-that works even when TYPO3 no longer boots.
+Guardian is a native TYPO3 backend extension that keeps a TYPO3 installation
+updatable and recoverable. From a single admin-only module it drives Composer
+updates, full and scheduled backups, backend and standalone recovery, and
+complete extension management — each through the same safety pipeline
+(mandatory pre-change backup → maintenance mode → change → verification →
+automatic rollback on failure).
 
-> ⚠️ **Development status — Phase 1 (read-only foundation).**
-> This release is a **read-only shell**. It performs **no** backups, updates,
-> restores, deletions, migrations, or maintenance changes, and ships **no**
-> process execution and **no** recovery panel. Every not-yet-built operation
-> fails explicitly rather than pretending to succeed. Do not expect any
-> destructive capability yet — see `Documentation/ImplementationRoadmap.md`.
+> **Production status.** Guardian is a fully functional extension. Every section
+> below is implemented end-to-end from the backend UI to server-side execution.
+> Destructive operations run in detached PHP worker processes, are guarded by
+> explicit confirmation, are preceded by a mandatory safety backup, and roll
+> back automatically on failure. Guardian originated as a port of the Contao
+> Guardian bundle; it is now an independent native TYPO3 extension and is
+> documented here as it works today.
 
 ## Requirements
 
-- TYPO3 **13.4.9 through 14.x** (`typo3/cms-core: ^13.4.9 || ^14.0`); TYPO3
-  13.4.9 is the minimum supported version. Composer mode is strongly recommended
-  (update features require it)
-- PHP **8.2 minimum** (`~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0`). The effective
-  minimum on a given install is whatever the installed TYPO3 core enforces — TYPO3
-  13.4 runs on PHP 8.2+, TYPO3 14 raises the floor higher — but the extension
-  itself supports the full range
-- A writable `var/` directory (Guardian stores its state under `var/guardian/`)
+- **TYPO3 13.4.9 through 14.x** (`typo3/cms-core: ^13.4.9 || ^14.0`). A single
+  package supports both; 13.4.9 is the minimum.
+- **PHP 8.2+** (`~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0`). The effective floor is
+  whatever the installed TYPO3 core enforces.
+- **Composer-managed installation.** Update and extension features operate on
+  `composer.json`/`composer.lock` and require Composer mode.
+- **`ext-json`** (required). **`ext-zip`** is used to create/read backup
+  archives; **`ext-pdo`** backs the pure-PHP database-dump fallback when
+  `mysqldump` is unavailable.
+- A **writable `var/` directory** — Guardian stores all runtime state under
+  `var/guardian/`.
 
-Later phases will additionally need a PHP CLI binary, `composer.phar`, and the
-`mysqldump`/`mysql`/`tar` tools for backup and update features.
+### PHP CLI and Composer configuration
 
-## Installation (concept)
+Update and recovery jobs run in a **detached PHP CLI worker**, not in the web
+request. Guardian therefore needs, at run time:
+
+- a reachable **PHP CLI binary** — auto-detected, and configurable in
+  **Settings → PHP CLI settings** if detection fails;
+- a reachable **`composer.phar`** (or Composer binary) in the project;
+- the **`vendor/bin/typo3`** console binary (present in any Composer TYPO3
+  install).
+
+Backups additionally use `mysqldump`/`mysql` when available (with a pure-PHP PDO
+fallback for the dump) and the `ext-zip` archive writer.
+
+### Filesystem permissions
+
+The PHP process (web and CLI) must be able to **read and write `var/guardian/`**
+and, for updates/installs, the project's `composer.json`, `composer.lock`,
+`vendor/` and `packages/` directories. Guardian creates its private
+subdirectories with restrictive permissions and never widens them to world-writable.
+
+## Installation
 
 ```bash
 composer require vtinnovations/guardian-typo3
 ```
 
-Then, in the TYPO3 backend, flush caches so the new backend module is registered.
-The **Guardian** module appears under **System** and is visible to
-**administrators only**.
+Then flush TYPO3 caches so the backend module is registered:
 
-> No legacy install steps are required. This is a Composer-based TYPO3 extension
-> (13.4/14); there is no `ext_emconf.php` and no Contao-style console bootstrap.
-> See `Documentation/CompatibilityStrategy.md` for why Composer metadata alone is
-> sufficient for the supported installation mode.
-
-## Directory layout
-
-```
-guardian_typo3/
-├── composer.json                 typo3-cms-extension, PSR-4 → Classes/
-├── Configuration/
-│   ├── Services.yaml             DI: ports → adapters
-│   ├── Icons.php                 module icon
-│   └── Backend/Modules.php       admin-only System module
-├── Classes/
-│   ├── Domain/                   pure value objects & rules (no TYPO3, no I/O)
-│   ├── Application/              use-case services + Contract/ ports
-│   ├── Infrastructure/           JSON repos, clock, flock, paths, refusing executor
-│   ├── Typo3/                    TYPO3 adapters (environment, auth, logging, scheduler)
-│   └── Controller/Backend/       backend module controller
-├── Resources/
-│   ├── Private/{Layouts,Templates,Partials,Language}/   Fluid + XLF
-│   └── Public/{Css,JavaScript,Icons}/                   external assets
-├── Tests/Unit/                   CMS-independent PHPUnit tests
-└── Documentation/                audit, feature matrix, architecture, security, roadmap
+```bash
+vendor/bin/typo3 cache:flush
 ```
 
-Guardian's runtime state lives under `var/guardian/` (runtime config, license
-cache, schedule, locks, and — in later phases — jobs, logs and backups).
+The **Guardian** module appears under **System** and is visible to **TYPO3
+administrators only**. There is no `ext_emconf.php` and no legacy install step —
+Composer metadata is authoritative.
 
-## Security
+## Backend module access
 
-- The backend module is **administrator-only** (`access: admin`), reinforced by an
-  in-code admin assertion.
-- Phase 1 has **no write endpoints** and executes **no** external process.
-- All path handling is contained to `var/guardian/` and validated
-  symlink-agnostically; archive-safety and secret-redaction rules from the Contao
-  original are ported and unit-tested.
-- The standalone recovery panel is treated as a **separate, later,
-  security-critical deliverable** and is deliberately **not** part of this phase.
+- Registered with `access: admin` (administrators only) and additionally
+  asserted in code (`assertAdministrator()`) on every request and AJAX endpoint —
+  the access guarantee never depends on routing configuration alone.
+- All state-changing endpoints are **POST-only** and carry TYPO3's CSRF route
+  token.
+- Feature access beyond “administrator” is gated by the active licence tier
+  (see the [entitlement matrix](#licence-and-entitlement-matrix)).
 
-See `Documentation/SecurityModel.md` for the full model.
+## Navigation
 
-## Interface
+The module is a single page with six client-side tabs, in this order:
 
-The backend module is a **faithful port of the original Guardian interface**: one
-page with the original five tabs — **Dashboard, Update, Backup, Recovery,
-Einstellungen** — switched client-side, with the original `.updater-*` card,
-table, badge, modal and job-runner styling and the orange Guardian branding, in
-both light and dark backend modes. Scheduled backups live inside **Backup**; the
-Pro licence, recovery e-mail and PHP-CLI settings live inside **Einstellungen**.
-See `Documentation/ContaoUiParityMatrix.md` and
-`Documentation/VisualParityChecklist.md`.
+1. **Dashboard**
+2. **Update**
+3. **Backup**
+4. **Recovery**
+5. **Extensions**
+6. **Settings**
 
-## Current functionality
+### Dashboard
 
-- **Live (read-only):** license status, installed-package list, backup list,
-  schedule/runtime config display, recovery-token source, and the pre-update
-  analysis — all served by CSRF-protected, admin-only backend AJAX endpoints.
-- **Disabled with an explicit reason:** every destructive control (create/delete
-  backup, run/schedule updates, activate/clear licence, save runtime settings,
-  rotate token, send e-mails). These render `disabled` with an inline note naming
-  the backend phase that will enable them — nothing fakes success.
-- No outbound HTTP, no process execution, no scheduled execution yet.
+- Licence and entitlement summary (None / Free / Pro) with the unlocked-feature
+  list and an upgrade/enter-licence call to action.
+- System information: detected **TYPO3 version**, **installed-package count**,
+  **available-backup count**.
+- Current operational status (idle indicator).
+- **Pre-update analysis** launcher: a read-only environment check (Composer mode,
+  Composer files, PHP version, working-directory writability, PHP CLI, database
+  connectivity, disk space, licence, running-job state, backup capability).
 
-## Development
+### Update
+
+- Detects the **installed TYPO3 version** and performs **online release
+  discovery** against TYPO3’s public release feed: the **latest release of the
+  current major** and the **next stable major**.
+- **Target-version selection**, then a **Composer dry run** that reports the
+  **affected packages and extensions** without touching the live project.
+- **Run Live** stays disabled until a target is selected and a dry run succeeds.
+- A live update runs the full safety pipeline: **mandatory safety backup →
+  maintenance mode → `composer update` → TYPO3 extension setup / database schema →
+  cache flush → resulting-installation verification**, with **automatic rollback**
+  from the safety backup on any failure. A manual **rollback** control is also
+  available.
+- Live **progress**, step states and streaming logs; a list of **recent update
+  jobs**; and **reopening a finished job** to review its final status and logs.
+
+### Backup
+
+- **Manual backups** with per-component selection: the always-included core set
+  (`composer.json` + `composer.lock` + database dump), **fileadmin**, **local
+  `packages/`**, generated extension assets, and the **`vendor/`** directory.
+- **Database dump** via `mysqldump` with a pure-PHP PDO fallback.
+- Correct handling of **Composer path-repository symlinks** so local packages are
+  captured as real files.
+- Each archive carries a **manifest and checksums**; backups are **validated**
+  before they are offered for recovery. **Retention** limits are enforced per
+  profile.
+- **Scheduled backups** (mini/full profiles with frequency, time and weekday/day
+  rules) are configured here and executed by the `guardian:backup:run-due`
+  console command (see [Deployment](#deployment)).
+- **Pre-update safety backups** are created automatically by the Update and
+  Extensions pipelines before any change.
+- List, inspect details, download and delete backups.
+
+### Recovery
+
+Two independent recovery paths:
+
+- **Backend recovery** (inside TYPO3): backup discovery, a **mandatory preflight
+  and dry run**, component selection, staging, **local-package restoration**, a
+  **safe vendor rebuild** from `composer.lock` in isolated staging with **atomic
+  vendor switching**, **database restoration**, maintenance mode, a **transaction
+  journal**, **rollback**, **interrupted-recovery detection and rollback**, and
+  **post-recovery verification**.
+- **Standalone recovery panel**: a single, self-contained PHP entry point that
+  Guardian deploys into the public web root and that restores a Guardian backup
+  **even when TYPO3 no longer boots**. It authenticates with the **recovery
+  token** (stored hashed, or supplied via the `GUARDIAN_RECOVERY_TOKEN`
+  environment variable), is rate-limited, and reuses the same recovery engine as
+  the backend. Its filename, deployment and token are managed from Recovery/Settings.
+- **Recovery email notifications**: before a live update, Guardian can email the
+  recovery URL and access token to a configured address, sent through TYPO3’s
+  `MailerInterface`.
+
+### Extensions
+
+Full Composer-based extension management (Pro):
+
+- **Installed extension/package listing** with **classification** (TYPO3 core,
+  system extension, third-party extension, local extension, Composer library) and
+  **update discovery**.
+- **Per-package update**, **enable**, **disable** and **removal**, each with a
+  dry run, confirmation, safety backup and rollback.
+- **Guardian self-management**: a deferred **self-disable** and a controlled
+  **self-removal**, both requiring typed confirmation phrases; Guardian never
+  deletes its own package directory implicitly.
+- **TER**: search the TYPO3 Extension Repository, show **compatibility
+  information** for the running TYPO3 version, and install via a **dry run →
+  install** flow.
+- **Custom ZIP upload**: uploaded into a **private staging area**, passed through
+  **ZIP security inspection** and **extension-metadata detection**, then a
+  **dry run → install** flow.
+- Local installs register an **exact path-repository version mapping** and
+  **Guardian-managed ownership metadata**, so a later **removal deletes the owned
+  source directory** (via quarantine) and a previously removed uploaded extension
+  can be **re-uploaded and reinstalled** cleanly (orphaned-directory detection).
+- Live **progress, structured error reporting and job logs** throughout.
+
+### Settings
+
+- **Licence**: activate, **Update License**, and remove a licence. Validation is
+  **local** from the stored document (issue, start, expiry and **lifetime**
+  dates), so a verified licence keeps working offline until it genuinely expires.
+  **Free/Pro entitlements**, an **expired-Pro → Free fallback**, an **MD5
+  store-integrity** check and an optional **Ed25519 signature** layer are all
+  applied.
+- **PHP CLI settings**: auto-detect, test and persist the PHP CLI binary path.
+- **Recovery email**: configure recipient/sender and **send a test email**
+  (through `MailerInterface`).
+- **Standalone recovery configuration**: panel filename, deployment and token.
+
+## Licence and entitlement matrix
+
+Access is enforced **server-side** on every endpoint (administrator gate → licence
+gate). “Free” means any valid licence; “Pro” means a valid `pro` licence.
+
+| Feature | Access |
+| --- | --- |
+| Manual Backup | **Free and Pro** |
+| Scheduled Backup | **Pro only** |
+| Update | **Pro only** |
+| Extensions | **Pro only** |
+| Recovery (backend) | **Pro only** |
+| Standalone Recovery (deploy & manage) | **Pro only** |
+| Licence activation / Update / removal (Settings) | **Available** (administrator) |
+| Pre-update analysis (Dashboard) | **Available** (administrator) |
+
+Effective access per licence state:
+
+| Licence state | Manual Backup | Scheduled Backup | Update | Extensions | Recovery | Standalone Recovery |
+| --- | --- | --- | --- | --- | --- | --- |
+| No licence | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| Active **Free** | Available | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| Active **Pro** | Available | Available | Available | Available | Available | Available |
+| Expired **Pro** with Free fallback | Available (Free fallback) | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| Expired licence without fallback | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| Malformed / invalid / integrity or signature failure / domain mismatch | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+
+With **no valid licence**, only the Dashboard and Settings are usable (so a
+licence can be entered). Status labels used above: **Available**, **Pro only**,
+**Free and Pro**, **Conditional**, **Not applicable**.
+
+## Security architecture
+
+- **Administrator-only** module and endpoints (`access: admin` + in-code
+  assertion); **POST + CSRF token** on every mutation.
+- **Path containment**: all Guardian state is confined to `var/guardian/` and
+  validated symlink-agnostically; uploads are contained to a private staging
+  directory.
+- **No shell string execution**: external processes run through `symfony/process`
+  with argument arrays — never `exec()`/`shell_exec()`/`system()`/backticks.
+- **ZIP-safety inspection** (path traversal, symlink, entry-count/size and
+  decompression-bomb checks) on every uploaded archive.
+- **Secret redaction**: logs and API responses never expose licence keys,
+  signatures, expected integrity digests, recovery tokens, transport credentials,
+  DSNs, stack traces or absolute installation paths.
+- The **licence store** carries an MD5 integrity indicator and an optional
+  asymmetric signature; the standalone recovery **token** is stored hashed.
+
+See [`Documentation/SecurityModel.md`](Documentation/SecurityModel.md),
+[`Documentation/LicensingImplementation.md`](Documentation/LicensingImplementation.md),
+[`Documentation/LicensingSecurity.md`](Documentation/LicensingSecurity.md).
+
+### Update, backup and recovery safety
+
+- **Update safety**: mandatory pre-update backup, maintenance mode, isolated
+  Composer dry run, verification of the result, and **automatic rollback** from
+  the safety backup if any step fails.
+  See [`Documentation/UpdateImplementation.md`](Documentation/UpdateImplementation.md).
+- **Backup safety**: manifests + checksums, validation before recovery, retention
+  enforcement, and correct symlink/vendor/local-package handling.
+- **Recovery safety**: mandatory dry run, atomic vendor switching, a transaction
+  journal, interrupted-recovery detection/rollback, and post-recovery
+  verification. See [`Documentation/RecoverySafety.md`](Documentation/RecoverySafety.md)
+  and [`Documentation/StandaloneRecoveryPanel.md`](Documentation/StandaloneRecoveryPanel.md).
+- **Extension-installation safety**: private staging, ZIP inspection, dry run,
+  managed-ownership metadata, and safe removal/reinstall of managed source
+  directories.
+
+## Runtime directories
+
+Guardian keeps **all** state under `var/guardian/`, including: the licence store
+(`license.json`), runtime configuration, backup schedules, process locks, update
+jobs and their logs, created **backups**, recovery staging and the transaction
+journal, extension **upload staging** and **quarantine** of removed managed
+directories, and the standalone recovery-panel token. Nothing is written outside
+`var/guardian/` except the operations the administrator explicitly triggers
+(Composer changes, the deployed recovery-panel file in the web root, and restored
+project files).
+
+## External V-T.ONE communication
+
+Guardian contacts exactly three V-T.ONE endpoints, over TLS, and fails safe if
+any is unreachable:
+
+- **Licence verification** — `https://www.v-t.one/api/v1/verify`
+- **Licence update ("Update License")** — `https://www.v-t.one/rest/api/v1/guardian-license-updater`
+- **Invocation signal** — `https://www.v-t.one/rest/api/v1/log-envoke`
+  (fire-and-forget; transmits **only** the project identifier and the normalized
+  domain; never blocks the request or the licence decision)
+
+No other outbound HTTP is performed except the TYPO3 Extension Repository /
+Packagist lookups used by the Extensions tab.
+
+## Logging and secret redaction
+
+Operational output is written to Guardian’s job logs and the TYPO3 system log.
+All log lines and AJAX payloads pass through secret redaction before leaving the
+server: licence keys, signatures, integrity digests, recovery tokens, mail
+transport DSNs/credentials, and absolute paths are never emitted.
+
+## Deployment
+
+```bash
+# 1. Install / update the extension
+composer require vtinnovations/guardian-typo3
+
+# 2. Regenerate the autoloader (production)
+composer dump-autoload -o
+
+# 3. Register/refresh the module and apply extension setup
+vendor/bin/typo3 extension:setup
+```
+
+Scheduled backups require an **external trigger** that invokes the console
+command periodically — a real cron entry or a TYPO3 Scheduler *“Execute console
+command”* task. Guardian does **not** auto-register a Scheduler task.
+
+```cron
+*/5 * * * * /usr/bin/php /path/to/project/vendor/bin/typo3 guardian:backup:run-due
+```
+
+Registered console commands:
+
+- `guardian:backup:run-due` — run scheduled backups that are currently due (cron/Scheduler).
+- `guardian:update:run` — internal detached update/extension worker (spawned by Guardian; not run by hand).
+- `guardian:license:digest` — developer tool to pin the licence store-integrity digest for a frozen licence file.
+
+## Cache clearing
+
+```bash
+vendor/bin/typo3 cache:flush
+```
+
+After deploying updated frontend assets, hard-refresh the backend so the updated
+`guardian.js`/`guardian.css` are loaded.
+
+## Testing
 
 ```bash
 composer install
-vendor/bin/phpunit -c phpunit.xml.dist   # CMS-independent unit tests
+vendor/bin/phpunit -c phpunit.xml.dist
 ```
 
-> The unit tests in `Tests/Unit/` cover the CMS-independent logic (config
-> validation, path safety, schedule math, lock behaviour, license interpretation,
-> archive validation, command construction, job transitions). They have **not**
-> been executed in the environment where this scaffold was generated (no
-> PHP/Composer runtime was available there). See `Documentation/Testing.md` for
-> the full command set and the TYPO3 13.4 / 14 CI matrix.
+The suite under `Tests/Unit/` covers the CMS-independent logic (licence
+interpretation and store schema, path safety, archive validation, schedule math,
+lock behaviour, Composer command construction, package classification, job
+transitions, managed-ownership and removal). See
+[`Documentation/Testing.md`](Documentation/Testing.md) for the full command set.
 
-## Planned CLI (not yet implemented)
+## Known limitations
 
-Later phases will introduce a TYPO3 console worker command (e.g. the background
-job runner) and Scheduler integration for backups. These are **planned** and do
-not exist in Phase 1.
+- **Composer mode is required** for Update and Extensions; on a non-Composer
+  install those tabs cannot operate.
+- **Scheduled backups need an external trigger** (real cron or a TYPO3 Scheduler
+  “execute console command” task) — there is no auto-registered Scheduler task.
+- **Update/recovery workers need a PHP CLI binary and a reachable `composer.phar`**;
+  configure the PHP CLI path in **Settings** if auto-detection fails.
+- **Backend recovery runs inside TYPO3.** If TYPO3 no longer boots, use the
+  **standalone recovery panel**.
+- The unit tests are CMS-independent; full TYPO3 functional coverage depends on
+  the target environment’s PHP/Composer/database tooling.
 
-## License
+## Licence and copyright
 
-LGPL-3.0-or-later · © V&T Innovations
+LGPL-3.0-or-later · © 2026–2028 V&T Innovations. See [`LICENSE`](LICENSE).
