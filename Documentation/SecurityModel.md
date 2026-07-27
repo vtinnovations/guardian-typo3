@@ -1,152 +1,246 @@
+<!--
+  This file is part of the "Guardian for TYPO3" extension for TYPO3 CMS.
+
+  @author    V&T Innovations Team
+  @license   LGPL-3.0-or-later
+  @copyright V&T Innovations 2026 - 2028
+-->
+
 # Security Model — Guardian for TYPO3
 
-> **Current status (supersedes the historical phased wording below).** Guardian
-> is fully implemented: it runs Composer updates, creates and restores backups,
-> executes detached PHP worker processes, and ships the standalone recovery
-> panel. The controls described in this document are the ones that are now
-> **enforced in production** — administrator-only + in-code assertion on every
-> endpoint, POST + CSRF on every mutation, `symfony/process` argument-array
-> execution (never shell strings), path containment to `var/guardian/`,
-> ZIP-safety inspection, mandatory pre-change backups with automatic rollback,
-> and secret redaction. The `README.md` "Security architecture" section is the
-> authoritative summary. The phase-by-phase framing that follows is retained for
-> historical context only; where it says a control is "not yet" present or a
-> feature is "out of scope for Phase 1", read it as **implemented today**.
+Guardian is a high-privilege administration tool: it can run Composer, dump and
+restore databases, write and delete project files, and toggle maintenance mode.
+Its security model is therefore central to the product. This document describes,
+at a level appropriate for administrators and security reviewers, the controls
+Guardian enforces in production. It intentionally omits internal implementation
+details that are not needed to operate or assess Guardian safely.
 
-Guardian is, by nature, a high-privilege tool: it can run Composer, dump and
-restore databases, delete files and toggle maintenance mode. The security model
-is therefore central, not an afterthought. This document states the required
-controls and how each is enforced.
+## 1. Scope and security objectives
 
-## 1. Authorization
+Guardian's security controls exist to ensure that only authorised
+administrators can trigger high-impact operations, that every such operation is
+reversible or fails safely, that the system cannot be driven outside its
+intended boundaries, and that no secret is exposed to a browser, a log, or an
+unprivileged user. Licensing and entitlement enforcement is treated as a
+security concern and is performed server-side.
 
-- **TYPO3 backend administrator only.** The module is registered with
-  `access: 'admin'` in `Configuration/Backend/Modules.php` — TYPO3 refuses the
-  route to non-admins natively.
-- **Defence in depth.** `GuardianModuleController::handleRequest` additionally
-  calls `BackendAuthorizationInterface::assertAdministrator()`, so the guarantee
-  does not rely solely on routing configuration (mirrors the audited Contao
-  `BackendAuthChecker`, which existed precisely because backend routes were not
-  admin-restricted by default).
-- **Every future write/AJAX route must repeat both checks.** No endpoint may
-  assume the module gate is sufficient.
-- **Cross-version note (13.4 / 14).** The `access: 'admin'` module gate,
-  `BackendUserAuthentication::isAdmin()`, and backend-user retrieval behave
-  identically on TYPO3 13.4.9 and 14. The admin check is isolated in the
-  `Typo3\Authorization\BackendUserAuthorization` adapter; no domain or application
-  service touches `$GLOBALS['BE_USER']`, so the authorization model is
-  version-neutral and requires no version branching.
+The objectives are:
 
-## 2. Request-token / CSRF handling
+- restrict all Guardian functionality to TYPO3 backend administrators;
+- protect every state-changing request against forgery;
+- enforce Free/Pro entitlements on the server, not in the browser;
+- run external processes without any shell interpretation;
+- contain all Guardian activity to well-defined filesystem boundaries;
+- make destructive operations recoverable, with automatic rollback on failure;
+- keep secrets out of responses, logs, and process listings.
 
-- The Contao original used a same-origin (Origin/Referer) check. TYPO3 provides a
-  stronger, built-in backend **request token** mechanism (`RequestToken` /
-  `FormProtection`), available and equivalent in 13.4 and 14.
-- Every state-changing backend route validates
-  a TYPO3 backend request token (`FormProtection`/`RequestToken`), in addition to
-  admin authorization. GET routes remain side-effect free.
-- The license activation and removal routes use TYPO3-generated backend AJAX
-  URLs carrying the request token and also assert administrator authorization.
+## 2. Access control
 
-## 3. Protection of write endpoints
+- **Administrators only.** The backend module is registered so that TYPO3 grants
+  access exclusively to backend administrators, and this is re-asserted in
+  application code on every request and every AJAX endpoint. The access
+  guarantee never depends on routing configuration alone.
+- **Uniform enforcement.** Every endpoint independently re-checks administrator
+  status; no endpoint assumes that reaching it implies authorisation.
+- **Entitlement gate.** Beyond the administrator check, feature access is gated
+  by the active licence tier (see §4). Read-only status views remain available so
+  an administrator can always see the current state and activate a licence.
+- **Version-neutral.** The authorisation behaviour is identical on the supported
+  TYPO3 releases and requires no version-specific branching.
 
-- Apart from the admin-only, CSRF-protected license activation/removal slice, the Settings/Schedule
-  sections render current values read-only; no form posts back.
-- When write paths arrive they must: (a) be POST/PUT/DELETE only, (b) require
-  admin, (c) validate the request token, (d) validate/normalise all input through
-  domain value objects before touching disk.
+## 3. Request protection
 
-## 4. Command injection & process invocation
+- **CSRF protection.** Every state-changing endpoint validates TYPO3's built-in
+  backend request/CSRF token in addition to the administrator check. Backend AJAX
+  URLs are generated by TYPO3 with the token embedded.
+- **POST-only mutations.** All operations that change state are exposed only over
+  POST; read-only queries use side-effect-free requests.
+- **Input validation.** Request payloads are validated and normalised before any
+  disk or process interaction; malformed input is rejected with a safe, generic
+  error.
 
-- **Shell-free by construction.** `CommandRequest` can only hold an argv array;
-  there is no way to express a shell command string. It rejects NUL bytes and
-  empty binaries. Future executors MUST pass this argv to Symfony Process without
-  `Process::fromShellCommandline` and without `/bin/sh -c`.
-- **No `exec()`/`shell_exec()`/`system()`/backticks in Phase 1.** The only executor
-  shipped, `UnavailableCommandExecutor`, throws `NotImplementedException`.
-- **Secrets via environment, never argv.** The Contao pattern of passing DB
-  passwords through `MYSQL_PWD` is preserved in `CommandRequest::withEnv()`, which
-  keeps the secret off the (display-only) `describe()` rendering and out of any
-  process listing.
-- **PHP/Composer binary validation** (later phase): the configured PHP binary must
-  be validated as a real CLI binary (reject `-fpm`/`-cgi`), and Composer must
-  always be driven as `<php> composer.phar` to keep platform-requirement checks
-  consistent with the runtime SAPI.
+## 4. Licence and entitlement security
 
-## 5. Filesystem containment, symlinks, archive traversal
+Licensing is enforced as a security boundary. The following properties hold; the
+internal mechanics are deliberately not described here.
 
-- **Single owned working directory.** `GuardianPaths` resolves exactly one base
-  (`<var>/guardian`) and every derived path goes through `PathNormalizer` +
-  `isContained()`; a name that would escape the directory throws. No caller
-  concatenates paths ad hoc (the Contao original did, everywhere).
-- **Symlink-agnostic reasoning.** `PathNormalizer` resolves `.`/`..` lexically
-  and never calls `realpath()` for the security decision, so a symlink cannot
-  tunnel a "contained" path outside the base — the same defensive stance the
-  Contao `ScheduleConfig`/`RestoreManager` took.
-- **Archive traversal.** `ArchiveEntryValidator` rejects absolute paths (POSIX and
-  Windows/UNC) and any `..` segment. Restore (a later phase) must validate the
-  full archive listing with it *before* extraction and abort on any unsafe entry.
+- **Server-side enforcement.** Entitlement decisions are made on the server.
+  Any interface state that appears to lock or unlock a feature is a convenience
+  only and is never trusted for access control.
+- **Private storage.** Licence data is stored in a private runtime location
+  outside the public web root, with restrictive file permissions, and is never
+  served to the browser.
+- **Local authenticity and integrity checks.** Guardian validates the
+  authenticity and integrity of its stored licence locally before honouring it,
+  so a tampered or substituted licence is not accepted.
+- **Trusted remote verification only when authorised.** Guardian contacts the
+  licence service only for explicit, administrator-initiated activation or refresh
+  operations. Routine entitlement checks are performed locally and require no
+  network access, so normal operation continues offline within the licence's
+  validity.
+- **Atomic updates.** A licence update is applied atomically: either the complete
+  new licence replaces the previous one, or the previous one is preserved. A
+  failed or unreachable update never revokes a currently valid licence.
+- **Fail-restricted, not fail-open and not fail-closed-globally.** If licence
+  validation fails, only the restricted (licensed) Guardian functions are
+  disabled; the administrator retains access to status and licence-management
+  views so the situation can be corrected.
+- **Free and Pro entitlements.** Both tiers are enforced server-side. Free-tier
+  and Pro-tier capabilities are distinguished by the server on every request.
+- **Authorised fallback.** An expired Pro licence may fall back to Free-tier
+  capabilities only when the licence itself explicitly authorises that fallback;
+  otherwise expiry removes access to restricted functions.
+- **No secret exposure.** Licence keys and any authentication secrets are never
+  sent to the browser, embedded in client-side state, or written to logs.
 
-## 6. Secrets & token storage
+## 5. Process execution
 
-- **Runtime config & license cache** live under `<var>/guardian/` with restrictive
-  permissions (`0640` files, `0750` dirs) and atomic temp-file+rename writes.
-- **Log redaction.** `Typo3SystemLogger` centrally redacts passwords, tokens,
-  bearer credentials and DSN-embedded passwords before anything is logged (ported
-  from the Contao `JobLog` rules).
-- **License API secret** is a low-value shared product key; treat as rotatable and
-  never log it.
+- **No shell interpretation.** External commands (for example Composer and
+  database tooling) are executed strictly through argument arrays. Guardian never
+  builds or runs a shell command string, and never uses `exec`, `shell_exec`,
+  `system`, or backticks. This removes command-injection as a class of risk.
+- **Detached workers.** Long-running, high-impact operations run in dedicated
+  background processes rather than in the web request, so a browser disconnect
+  cannot leave an operation in an ambiguous half-state.
+- **Secrets off the command line.** Sensitive values required by a subprocess are
+  passed through the process environment, never as command arguments, keeping them
+  out of process listings and diagnostic output.
+- **Binary validation.** The PHP CLI binary Guardian uses is validated as a real
+  command-line interpreter before it is trusted to run a job.
 
-## 7. License cache integrity
+## 6. Filesystem and archive security
 
-- Entitlement is decided server-side by `LicenseGuard` over the cached
-  `LicenseState`; UI locks are convenience only.
-- The grace window (default 7 days) is bounded and expiry is always enforced, so a
-  stale cache cannot indefinitely unlock Pro features.
+- **Containment.** Guardian confines all of its runtime state to a single private
+  working directory under the project's `var/` directory. Every derived path is
+  normalised and checked so that a path which would escape that boundary is
+  rejected.
+- **Traversal and unsafe-link prevention.** Path handling resolves relative
+  segments without following symlinks for the security decision, so a symbolic
+  link cannot tunnel a "contained" path outside its boundary. Archive contents
+  are screened before extraction and any absolute path or parent-directory segment
+  is refused.
+- **ZIP upload inspection.** Uploaded archives are inspected before use for path
+  traversal, unsafe symbolic links, excessive entry counts or sizes, and
+  decompression-bomb characteristics; an archive that fails any check is rejected
+  and never extracted into the project.
+- **Private staging.** Uploaded and in-progress content is handled in a private
+  staging area with restrictive permissions and is only promoted into the project
+  after it has passed validation.
 
-## 8. Recovery panel — explicitly out of scope for Phase 1
+## 7. Update and extension-management safety
 
-The standalone recovery panel is the single most sensitive component: a
-framework-free PHP file in the webroot that can restore backups and import
-databases. It is **not** copied into this project. It is scheduled as a separate,
-later, security-critical deliverable that must, at minimum, provide:
+- **Preview before change.** Updates and extension installs/removals are analysed
+  in an isolated dry run first; the live project is not modified during analysis.
+- **Guarded execution.** A live operation requires explicit administrator
+  confirmation and is preceded by a mandatory safety backup.
+- **Managed ownership.** Locally installed extensions are tracked with
+  managed-ownership metadata so Guardian only removes source directories it
+  created, and can safely reinstall a previously removed upload. Guardian never
+  deletes unrelated files or its own package directory implicitly.
+- **Self-management protection.** Disabling or removing Guardian itself requires
+  typed confirmation and runs through a controlled, deferred path.
 
-- opt-in, non-boot-time deployment with easy removal;
-- header-only auth (Basic/Bearer) with timing-safe comparison;
-- per-IP brute-force lockout;
-- same-origin enforcement on state-changing requests;
-- configurable, hard-to-guess filename;
-- a strong recommendation to add webserver-level IP/HTTP-auth protection.
+## 8. Backup and recovery safety
 
-## 9. Job concurrency & failure-safe maintenance
+- **Backup integrity.** Backups carry a manifest and checksums and are validated
+  before they are offered for recovery. Retention limits are enforced.
+- **Backup location.** Backups are stored within Guardian's private working
+  directory and are not placed in web-accessible or deploy-wiped locations.
+- **Mandatory pre-change backups.** Update and extension operations create a
+  safety backup before any change so the prior state can be restored.
+- **Recovery is destructive and guarded.** Recovery requires a mandatory dry run,
+  explicit administrator confirmation, and component selection. It restores files
+  and database from a validated backup, rebuilds dependencies safely in isolation,
+  and switches them into place atomically.
+- **Transactional recovery.** Recovery is journalled so an interrupted recovery
+  can be detected and rolled back, and the result is verified afterwards.
 
-- **Locking.** `FlockLock` provides non-blocking mutual exclusion with stale-lock
-  reclaim so a crashed run cannot wedge the system; the job/backup pipelines
-  (later) acquire a named lock via `LockFactoryInterface`.
-- **Failure-safe maintenance** (later phase): the `MaintenanceModeInterface` design
-  requires maintenance to be turned back OFF even after a failed operation — the
-  Contao `JobRunner` treated `maintenance_off` as a cleanup step that always runs;
-  the TYPO3 pipeline must preserve this.
+## 9. Standalone recovery protection
 
-## 10. Backup exposure & restore confirmation
+Guardian can deploy a self-contained recovery entry point into the public web
+root so that a site can be restored even when TYPO3 no longer boots. Because this
+component is uniquely sensitive, it is protected by:
 
-- Backups must never be stored web-accessibly or where a deploy wipes them; the
-  storage-path validator (ported from Contao `ScheduleConfig`) forbids
-  `public/`, `vendor/`, `fileadmin/`-style locations and system directories
-  (later phase).
-- Restore is destructive and must require an explicit, admin-only confirmation
-  step and a pre-restore snapshot option (later phase).
+- opt-in, administrator-initiated deployment, with straightforward removal;
+- a configurable, hard-to-guess filename;
+- token-based authentication using a timing-safe comparison, where the token is
+  stored only in hashed form or supplied through a server environment variable;
+- brute-force rate limiting;
+- reuse of the same validated recovery engine as the backend, rather than a
+  separate, less-reviewed implementation.
 
-## Phase-1 enforcement summary
+Administrators are strongly advised to add web-server-level access restrictions
+(for example IP allow-listing or HTTP authentication) to the recovery entry point
+and to remove it when it is not needed.
 
-| Control | Phase-1 state |
-|---|---|
-| Admin-only module | ✅ enforced (`access: admin` + code assertion) |
-| No write endpoints | ✅ none exist |
-| No process execution | ✅ executor refuses; no `exec`/`shell_exec`/`system`/backticks |
-| Path containment | ✅ `GuardianPaths` + `PathNormalizer` |
-| Archive-safety rule | ✅ `ArchiveEntryValidator` (ready for restore phase) |
-| Secret redaction | ✅ in logging adapter |
-| Server-side license gate | ✅ `LicenseGuard` |
-| CSRF token on writes | ⏳ n/a (no writes yet); required from Phase 2 |
-| Recovery panel | ⏳ deliberately absent |
+## 10. Secrets and logging
+
+- **Secret redaction.** Log output and API responses pass through centralised
+  redaction so that credentials, tokens, transport connection strings, and
+  similar values are removed before anything leaves the server.
+- **No sensitive values in the browser.** Licence keys, authentication secrets,
+  integrity material, and recovery tokens are never delivered to the client.
+- **Security-relevant logging.** High-impact operations and failures are recorded
+  in Guardian's job logs and the TYPO3 system log, in a form that supports
+  auditing without disclosing secrets or absolute installation paths.
+
+## 11. External communication
+
+- **Fixed trusted services.** Guardian communicates with a small, fixed set of
+  trusted V-T.ONE HTTPS services for licence activation, refresh, and an
+  operational usage signal, plus the public extension-repository lookups used by
+  the Extensions section.
+- **TLS enforced.** Transport-layer security verification is always enabled for
+  these requests; certificate or host verification is never disabled.
+- **Minimal data.** The operational signal transmits only the product identifier
+  and the normalised site domain. No licence key or personal data is included.
+- **Fail-safe.** If an external service is unreachable, Guardian continues to
+  operate within the bounds of the locally validated licence; a network failure
+  never grants access it would not otherwise have.
+
+## 12. Failure behaviour and rollback
+
+- **Automatic rollback.** If a live update or extension operation fails at any
+  stage after changes begin, Guardian restores the pre-operation state from the
+  mandatory safety backup.
+- **Maintenance-mode cleanup.** Maintenance mode is always returned to its prior
+  state after an operation, including after a failure, so a crashed run cannot
+  leave a site stuck in maintenance.
+- **Operation locks.** A named, non-blocking lock with stale-lock reclaim
+  prevents concurrent high-impact operations and ensures a crashed run cannot
+  wedge the system.
+- **Notification independence.** Failure to send a notification (for example a
+  recovery e-mail) never changes licence validity or the outcome of an operation.
+
+## 13. Operational responsibilities
+
+Guardian enforces strong technical controls, but a secure deployment also depends
+on the administrator:
+
+- restrict TYPO3 administrator accounts to trusted personnel;
+- keep the project's `var/` directory writable only by the application and
+  protected from public access;
+- store downloaded backups and any exported recovery credentials securely and
+  outside the public web root;
+- protect and, when unused, remove the standalone recovery entry point, and add
+  web-server-level access restrictions to it;
+- keep the host, PHP, and TYPO3 core patched;
+- treat recovery tokens and licence credentials as sensitive and rotate them if
+  exposure is suspected.
+
+## 14. Security limitations
+
+- Guardian operates with the privileges of the PHP process; it cannot protect
+  against a compromised host, a compromised TYPO3 administrator account, or
+  filesystem access outside Guardian obtained by other means.
+- Correct operation of updates, recovery, and backups depends on the availability
+  and correctness of the host's PHP CLI, Composer, database, and archiving
+  tooling.
+- Rollback restores from the most recent safety backup; it cannot recover data
+  created after that backup was taken.
+- The standalone recovery entry point is powerful by design; its safety depends on
+  keeping its filename and token confidential and on the recommended web-server
+  protections.
+- Server-side entitlement enforcement protects Guardian's functions; it does not
+  and cannot prevent modification of an administrator's own self-hosted source
+  code, which remains the administrator's responsibility under the licence terms.
