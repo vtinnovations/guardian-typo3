@@ -194,21 +194,23 @@ Full Composer-based extension management (Pro):
 - **Licence**: activate, **Update Licence** and remove a licence. These controls
   live in one place — **System → VTOne Licensing**, a shared screen that lists one
   section per installed V-T.ONE product. Guardian's Settings tab links to it and
-  holds no licence controls of its own. Validation is **local** from the stored
-  document (issue, start, expiry and **lifetime** dates), so a verified licence
-  keeps working offline until it genuinely expires. Guardian is sold as **Free or
-  Pro**, and both require an activated key; a signed document naming any other
-  package value is refused. An **expired Pro licence keeps the Free feature set**
-  when — and only when — that same signed record carries `free_available`. An
-  **MD5 store-integrity** check and **Ed25519 signature** verification are
-  applied on every read.
+  holds no licence controls of its own. Use this screen for activation, refresh
+  and removal; there is no supported way to install or edit a licence by hand.
 
-  A licence covers a **signed set of exact host names**. Guardian grants Pro or
-  Free when one of those hosts is also configured in **TYPO3 Site
-  Configuration** — a site `base`, a language `base` or a `baseVariants` entry.
-  Several domains may be configured; one exact match is enough. `www.example.com`
-  and `example.com` are different hosts, and an installation with no site
-  configuration cannot be licensed.
+  Guardian requires an activated V-T.ONE licence and is sold as **Free** or
+  **Pro**. Both tiers require an activated key, and Free and Pro capabilities are
+  enforced on the server. Routine entitlement checks are performed locally against
+  authenticated, integrity-protected licence data, so a verified licence keeps
+  working without network access until it expires. An **expired Pro licence falls
+  back to the Free feature set only when the licence itself permits it**;
+  otherwise expiry disables the restricted functions.
+
+  A licence authorises a specific set of host names. Guardian grants Free or Pro
+  when one of those hosts is also configured in **TYPO3 Site Configuration** — a
+  site `base`, a language `base` or a `baseVariants` entry. Several domains may be
+  configured; one exact match is enough. `www.example.com` and `example.com` are
+  treated as different hosts, and an installation with no site configuration
+  cannot be licensed.
 
 ### Settings
 
@@ -220,8 +222,8 @@ Full Composer-based extension management (Pro):
 ## Licence and entitlement matrix
 
 Access is enforced **server-side** on every endpoint (administrator gate → licence
-gate). “Free” means an activated `free` licence, or an expired `pro` licence whose
-signed record authorises the Free fallback; “Pro” means an active `pro` licence.
+gate). “Free” means an activated Free licence, or an expired Pro licence that
+permits the Free fallback; “Pro” means an active Pro licence.
 
 | Feature | Access |
 | --- | --- |
@@ -241,11 +243,10 @@ Effective access per licence state:
 | No licence | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
 | Active **Free** | Available | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
 | Active **Pro** | Available | Available | Available | Available | Available | Available |
-| Not yet started | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
-| Expired **Pro** with signed `free_available` | Available (Free fallback) | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| Not yet valid | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| Expired **Pro** that permits the Free fallback | Available (Free fallback) | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
 | Expired **Pro** without it, or expired **Free** | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
-| Package other than `free` / `pro` | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
-| Malformed / invalid / integrity or signature failure / domain mismatch | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| Licence not valid for this installation | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
 
 With **no valid licence**, only the Dashboard and Settings are usable (so a
 licence can be entered). Status labels used above: **Available**, **Pro only**,
@@ -262,15 +263,14 @@ licence can be entered). Status labels used above: **Available**, **Pro only**,
   with argument arrays — never `exec()`/`shell_exec()`/`system()`/backticks.
 - **ZIP-safety inspection** (path traversal, symlink, entry-count/size and
   decompression-bomb checks) on every uploaded archive.
-- **Secret redaction**: logs and API responses never expose licence keys,
-  signatures, expected integrity digests, recovery tokens, transport credentials,
-  DSNs, stack traces or absolute installation paths.
-- The **licence store** carries an MD5 integrity indicator and an optional
-  asymmetric signature; the standalone recovery **token** is stored hashed.
+- **Secret redaction**: logs and API responses never expose the full licence key,
+  licence authentication material, recovery tokens, transport credentials, DSNs,
+  stack traces or absolute installation paths.
+- **Licence data** is stored outside the public web root and is validated for
+  authenticity and integrity before it is honoured; the standalone recovery
+  **token** is not stored in recoverable form.
 
-See [`Documentation/SecurityModel.md`](Documentation/SecurityModel.md),
-[`Documentation/LicensingImplementation.md`](Documentation/LicensingImplementation.md),
-[`Documentation/LicensingSecurity.md`](Documentation/LicensingSecurity.md).
+See [`Documentation/SecurityModel.md`](Documentation/SecurityModel.md).
 
 ### Update, backup and recovery safety
 
@@ -290,34 +290,36 @@ See [`Documentation/SecurityModel.md`](Documentation/SecurityModel.md),
 
 ## Runtime directories
 
-Guardian keeps **all** state under `var/guardian/`, including: the licence store
-(`license.json`), runtime configuration, backup schedules, process locks, update
-jobs and their logs, created **backups**, recovery staging and the transaction
-journal, extension **upload staging** and **quarantine** of removed managed
-directories, and the standalone recovery-panel token. Nothing is written outside
+Guardian keeps **all** state under `var/guardian/`, including: licence data,
+runtime configuration, backup schedules, process locks, update jobs and their
+logs, created **backups**, recovery staging and the transaction journal,
+extension **upload staging** and **quarantine** of removed managed directories,
+and the standalone recovery-panel token. This directory is outside the public web
+root and must stay that way. Nothing is written outside
 `var/guardian/` except the operations the administrator explicitly triggers
 (Composer changes, the deployed recovery-panel file in the web root, and restored
 project files).
 
 ## External V-T.ONE communication
 
-Guardian contacts exactly two V-T.ONE addresses, over TLS, and fails safe if
-either is unreachable:
+Guardian communicates only with trusted V-T.ONE HTTPS services at
+`www.v-t.one`, with transport-layer verification always enabled, and fails safe
+if they are unreachable. There are two kinds of outbound traffic:
 
-- **Licence verification and update** — `https://www.v-t.one/api/v1/verify`
-  (activation, and **Update License**, which is a `refresh` to the same address)
-- **Signals** — `https://www.v-t.one/rest/api/v1/log-envoke`, fire-and-forget,
-  never blocking the request or the licence decision:
-  - once per web invocation, transmitting **only** the project identifier and the
-    normalized domain;
+- **Licence activation and refresh** — performed only when an administrator
+  activates or explicitly refreshes a licence from the Guardian interface.
+- **Operational signals** — fire-and-forget, never blocking a request or a licence
+  decision:
+  - once per web invocation, transmitting **only** the product identifier and the
+    normalised domain;
   - once per signed-in backend session, when an administrator first opens the
-    module, transmitting **only** the normalized domain and the licence key. This
+    module, transmitting **only** the normalised domain and the licence key. This
     is server-to-server; the key never reaches the browser or the logs.
 
-Guardian also **receives** one machine-facing call. V-T.ONE may push a licence
-update to `https://<this installation>/rest/api/v1/guardian-license-updater`.
-That is an inbound path this installation serves, not an address Guardian calls,
-and it is authenticated by signature alone.
+Guardian also **receives** authorised, authenticated licence updates initiated by
+V-T.ONE. These arrive on a machine-facing endpoint this installation serves; they
+are not an address Guardian calls, they are applied only after authentication,
+and they are applied atomically or not at all.
 
 No other outbound HTTP is performed except the TYPO3 Extension Repository /
 Packagist lookups used by the Extensions tab.
@@ -326,8 +328,8 @@ Packagist lookups used by the Extensions tab.
 
 Operational output is written to Guardian’s job logs and the TYPO3 system log.
 All log lines and AJAX payloads pass through secret redaction before leaving the
-server: licence keys, signatures, integrity digests, recovery tokens, mail
-transport DSNs/credentials, and absolute paths are never emitted.
+server: the full licence key, licence authentication material, recovery tokens,
+mail transport DSNs/credentials, and absolute paths are never emitted.
 
 ## Deployment
 

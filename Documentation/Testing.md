@@ -18,22 +18,6 @@ Pure, deterministic logic — the highest-value, framework-free surface:
 | Runtime config validation | `Tests/Unit/Domain/Configuration/RuntimeConfigurationTest.php` |
 | Safe path normalisation & containment | `Tests/Unit/Domain/Filesystem/PathNormalizerTest.php` |
 | Schedule due/next-run math | `Tests/Unit/Domain/Schedule/ScheduleEvaluatorTest.php` |
-| Exact-host binding | `Tests/Unit/Domain/Environment/HostIdentityTest.php` |
-| Configured-host inventory & intersection | `Tests/Unit/Domain/Environment/HostInventoryTest.php` |
-| Session module-entry signal | `Tests/Unit/Integration/SessionEntrySignalTest.php` |
-| Shared licence screen & product registry | `Tests/Unit/Integration/PackageScreenWiringTest.php` |
-| One licence surface (legacy panel removed) | `Tests/Unit/Integration/SingleLicenceSurfaceTest.php` |
-| Record invariants & tiers | `Tests/Unit/Domain/Configuration/ServiceRecordTest.php` |
-| Canonical signing vectors | `Tests/Unit/Infrastructure/Manifest/CanonicalFormTest.php` |
-| Package verification | `Tests/Unit/Infrastructure/Manifest/SealedPackageTest.php` |
-| Pinned key ring & rotation | `Tests/Unit/Infrastructure/Version/ReleaseKeyringTest.php` |
-| Atomic storage & rollback | `Tests/Unit/Infrastructure/Configuration/SealedRecordStoreTest.php` |
-| Activation & Update Licence | `Tests/Unit/Application/Configuration/ActivationServiceTest.php` |
-| Vendor-initiated push | `Tests/Unit/Middleware/RestEndpointMiddlewareTest.php` |
-| Trusted-host resolution | `Tests/Unit/Typo3/Environment/InstallationIdentityTest.php` |
-| Packet-log secrecy | `Tests/Unit/Integration/PacketSecrecyTest.php` |
-| Source-layout concealment | `Tests/Unit/Integration/SourceLayoutTest.php` |
-| Release artefact | `Tests/Unit/Integration/ReleaseArtefactTest.php` |
 | Archive traversal (zip/tar-slip) | `Tests/Unit/Domain/Archive/ArchiveEntryValidatorTest.php` |
 | Shell-free command construction | `Tests/Unit/Domain/Process/CommandRequestTest.php` |
 | Job state transitions | `Tests/Unit/Domain/Job/JobTest.php` |
@@ -41,6 +25,12 @@ Pure, deterministic logic — the highest-value, framework-free surface:
 
 Because these do not depend on TYPO3, a single run validates the logic for both
 supported TYPO3 lines.
+
+The suite also covers entitlement and licence handling, backend wiring, logging
+redaction and the release artefact. Those tests are not itemised here: the table
+above is an orientation aid for contributors working on the operational parts of
+the product, and enumerating the entitlement tests would describe internals this
+documentation deliberately leaves out. `vendor/bin/phpunit` runs everything.
 
 ## Dependency ranges
 

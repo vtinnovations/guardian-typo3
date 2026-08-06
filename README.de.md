@@ -218,22 +218,26 @@ Vollständige Composer-basierte Erweiterungsverwaltung (Pro):
   Diese Bedienelemente liegen an genau einer Stelle: unter **System → VTOne
   Licensing**, einer gemeinsamen Seite mit je einem Abschnitt pro installiertem
   V-T.ONE-Produkt. Der Einstellungs-Tab von Guardian verlinkt dorthin und enthält
-  selbst keine Lizenzsteuerung mehr. Die Validierung erfolgt **lokal** aus dem
-  gespeicherten Dokument (Ausstellungs-, Start-, Ablauf- und
-  **Lebenslang**-Daten), sodass eine geprüfte Lizenz offline weiterarbeitet, bis
-  sie tatsächlich abläuft. Guardian wird als **Free oder Pro** vertrieben, beide
-  benötigen einen aktivierten Schlüssel; ein signiertes Dokument mit einem
-  anderen Paketwert wird abgelehnt. Eine **abgelaufene Pro-Lizenz behält den
-  Free-Funktionsumfang**, wenn – und nur wenn – derselbe signierte Datensatz
-  `free_available` enthält. Eine **MD5-Speicher-Integritäts**-Prüfung und die
-  **Ed25519-Signaturprüfung** werden bei jedem Lesen angewendet.
+  selbst keine Lizenzsteuerung mehr. Nutze diese Seite für Aktivierung,
+  Aktualisierung und Entfernen; es gibt keinen unterstützten Weg, eine Lizenz von
+  Hand einzuspielen oder zu bearbeiten.
 
-  Eine Lizenz umfasst eine **signierte Menge exakter Hostnamen**. Guardian gewährt
-  Pro oder Free, wenn einer dieser Hosts auch in der **TYPO3-Site-Konfiguration**
+  Guardian benötigt eine aktivierte V-T.ONE-Lizenz und wird als **Free** oder
+  **Pro** vertrieben. Beide Stufen benötigen einen aktivierten Schlüssel, und
+  Free- wie Pro-Funktionen werden serverseitig durchgesetzt. Reguläre
+  Berechtigungsprüfungen erfolgen lokal anhand authentifizierter und
+  integritätsgeschützter Lizenzdaten, sodass eine geprüfte Lizenz bis zu ihrem
+  Ablauf auch ohne Netzwerkzugriff weiterarbeitet. Eine **abgelaufene Pro-Lizenz
+  fällt nur dann auf den Free-Funktionsumfang zurück, wenn die Lizenz das
+  ausdrücklich erlaubt**; andernfalls deaktiviert der Ablauf die geschützten
+  Funktionen.
+
+  Eine Lizenz autorisiert eine bestimmte Menge von Hostnamen. Guardian gewährt
+  Free oder Pro, wenn einer dieser Hosts auch in der **TYPO3-Site-Konfiguration**
   konfiguriert ist – als `base` einer Site, `base` einer Sprache oder Eintrag unter
   `baseVariants`. Mehrere Domains sind zulässig; eine exakte Übereinstimmung
-  genügt. `www.example.com` und `example.com` sind verschiedene Hosts, und eine
-  Installation ohne Site-Konfiguration kann nicht lizenziert werden.
+  genügt. `www.example.com` und `example.com` gelten als verschiedene Hosts, und
+  eine Installation ohne Site-Konfiguration kann nicht lizenziert werden.
 
 ### Settings (Einstellungen)
 
@@ -248,8 +252,8 @@ Vollständige Composer-basierte Erweiterungsverwaltung (Pro):
 
 Der Zugriff wird **serverseitig** an jedem Endpunkt durchgesetzt
 (Administrator-Gate → Lizenz-Gate). „Free“ bedeutet eine aktivierte
-`free`-Lizenz oder eine abgelaufene `pro`-Lizenz, deren signierter Datensatz den
-Free-Fallback erlaubt; „Pro“ bedeutet eine aktive `pro`-Lizenz.
+Free-Lizenz oder eine abgelaufene Pro-Lizenz, die den Free-Fallback erlaubt;
+„Pro“ bedeutet eine aktive Pro-Lizenz.
 
 | Funktion | Zugriff |
 | --- | --- |
@@ -269,11 +273,10 @@ Effektiver Zugriff je Lizenzzustand:
 | Keine Lizenz | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
 | Aktive **Free** | Verfügbar | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
 | Aktive **Pro** | Verfügbar | Verfügbar | Verfügbar | Verfügbar | Verfügbar | Verfügbar |
-| Noch nicht gestartet | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
-| Abgelaufene **Pro** mit signiertem `free_available` | Verfügbar (Free-Fallback) | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
-| Abgelaufene **Pro** ohne dieses Flag oder abgelaufene **Free** | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
-| Anderes Paket als `free` / `pro` | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
-| Fehlerhaft / ungültig / Integritäts- oder Signaturfehler / Domain-Konflikt | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
+| Noch nicht gültig | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
+| Abgelaufene **Pro**, die den Free-Fallback erlaubt | Verfügbar (Free-Fallback) | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
+| Abgelaufene **Pro** ohne diese Erlaubnis oder abgelaufene **Free** | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
+| Lizenz für diese Installation nicht gültig | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
 
 Ohne **gültige Lizenz** sind nur Dashboard und Einstellungen nutzbar (damit eine
 Lizenz eingegeben werden kann). Verwendete Statusbezeichnungen: **Verfügbar**,
@@ -291,17 +294,16 @@ Lizenz eingegeben werden kann). Verwendete Statusbezeichnungen: **Verfügbar**,
   `exec()`/`shell_exec()`/`system()`/Backticks.
 - **ZIP-Sicherheitsprüfung** (Path-Traversal, Symlinks, Anzahl/Größe der Einträge
   und Prüfung auf Dekomprimierungsbomben) bei jedem hochgeladenen Archiv.
-- **Schwärzung von Geheimnissen**: Logs und API-Antworten geben niemals
-  Lizenzschlüssel, Signaturen, erwartete Integritäts-Digests,
+- **Schwärzung von Geheimnissen**: Logs und API-Antworten geben niemals den
+  vollständigen Lizenzschlüssel, Lizenz-Authentifizierungsmaterial,
   Wiederherstellungs-Token, Transport-Zugangsdaten, DSNs, Stacktraces oder
   absolute Installationspfade preis.
-- Der **Lizenzspeicher** trägt einen MD5-Integritätsindikator und eine optionale
-  asymmetrische Signatur; das Token des eigenständigen Wiederherstellungspanels
-  wird gehasht gespeichert.
+- **Lizenzdaten** liegen außerhalb des öffentlichen Web-Roots und werden vor
+  ihrer Verwendung auf Echtheit und Integrität geprüft; das Token des
+  eigenständigen Wiederherstellungspanels wird nicht in wiederherstellbarer Form
+  gespeichert.
 
-Siehe [`Documentation/SecurityModel.md`](Documentation/SecurityModel.md),
-[`Documentation/LicensingImplementation.md`](Documentation/LicensingImplementation.md),
-[`Documentation/LicensingSecurity.md`](Documentation/LicensingSecurity.md).
+Siehe [`Documentation/SecurityModel.md`](Documentation/SecurityModel.md).
 
 ### Sicherheit bei Update, Backup und Wiederherstellung
 
@@ -324,36 +326,42 @@ Siehe [`Documentation/SecurityModel.md`](Documentation/SecurityModel.md),
 
 ## Laufzeitverzeichnisse
 
-Guardian hält **den gesamten** Zustand unter `var/guardian/`, darunter: den
-Lizenzspeicher (`license.json`), die Laufzeitkonfiguration, Backup-Zeitpläne,
-Prozess-Locks, Update-Jobs und deren Logs, erstellte **Backups**, das
+Guardian hält **den gesamten** Zustand unter `var/guardian/`, darunter:
+Lizenzdaten, die Laufzeitkonfiguration, Backup-Zeitpläne, Prozess-Locks,
+Update-Jobs und deren Logs, erstellte **Backups**, das
 Wiederherstellungs-Staging und das Transaktionsjournal, das
 Extension-**Upload-Staging** sowie die **Quarantäne** entfernter verwalteter
-Verzeichnisse und das Token des eigenständigen Wiederherstellungspanels. Außerhalb
+Verzeichnisse und das Token des eigenständigen Wiederherstellungspanels. Dieses
+Verzeichnis liegt außerhalb des öffentlichen Web-Roots und muss dort bleiben.
+Außerhalb
 von `var/guardian/` wird nichts geschrieben – außer den Operationen, die der
 Administrator ausdrücklich auslöst (Composer-Änderungen, die ausgelieferte
 Recovery-Panel-Datei im Web-Root und wiederhergestellte Projektdateien).
 
 ## Externe V-T.ONE-Kommunikation
 
-Guardian kontaktiert genau zwei V-T.ONE-Adressen, über TLS, und verhält sich
-ausfallsicher, falls eine nicht erreichbar ist:
+Guardian kommuniziert ausschließlich mit vertrauenswürdigen
+V-T.ONE-HTTPS-Diensten unter `www.v-t.one`, stets mit aktivierter
+Transportverschlüsselungs-Prüfung, und verhält sich ausfallsicher, falls diese
+nicht erreichbar sind. Es gibt zwei Arten ausgehenden Verkehrs:
 
-- **Lizenzprüfung und -aktualisierung** – `https://www.v-t.one/api/v1/verify`
-  (Aktivierung sowie **Update License**, das ein `refresh` an dieselbe Adresse ist)
-- **Signale** – `https://www.v-t.one/rest/api/v1/log-envoke`, Fire-and-forget,
-  blockiert niemals den Request oder die Lizenzentscheidung:
-  - einmal pro Web-Aufruf, überträgt **ausschließlich** den Projektbezeichner und
+- **Lizenzaktivierung und -aktualisierung** – erfolgt nur, wenn eine
+  Administratorin eine Lizenz über die Guardian-Oberfläche aktiviert oder
+  ausdrücklich aktualisiert.
+- **Betriebssignale** – Fire-and-forget, blockieren niemals einen Request oder
+  eine Lizenzentscheidung:
+  - einmal pro Web-Aufruf, überträgt **ausschließlich** den Produktbezeichner und
     die normalisierte Domain;
   - einmal pro angemeldeter Backend-Session, wenn eine Administratorin das Modul
     erstmals öffnet, überträgt **ausschließlich** die normalisierte Domain und den
     Lizenzschlüssel. Das geschieht Server-zu-Server; der Schlüssel erreicht weder
     den Browser noch die Logs.
 
-Guardian **empfängt** zusätzlich einen maschinellen Aufruf: V-T.ONE kann eine
-Lizenzaktualisierung an `https://<diese Installation>/rest/api/v1/guardian-license-updater`
-senden. Das ist ein eingehender Pfad dieser Installation, keine Adresse, die
-Guardian aufruft, und er wird ausschließlich per Signatur authentifiziert.
+Guardian **empfängt** zusätzlich autorisierte, authentifizierte
+Lizenzaktualisierungen, die von V-T.ONE ausgelöst werden. Sie treffen auf einem
+maschinellen Endpunkt dieser Installation ein, sind also keine Adresse, die
+Guardian aufruft; sie werden erst nach erfolgreicher Authentifizierung und dann
+atomar oder gar nicht angewendet.
 
 Es findet kein weiteres ausgehendes HTTP statt, außer den Abfragen des TYPO3
 Extension Repository / von Packagist im Reiter Extensions.
@@ -362,9 +370,9 @@ Extension Repository / von Packagist im Reiter Extensions.
 
 Betriebsausgaben werden in die Job-Logs von Guardian und das TYPO3-System-Log
 geschrieben. Alle Logzeilen und AJAX-Payloads durchlaufen vor dem Verlassen des
-Servers eine Schwärzung von Geheimnissen: Lizenzschlüssel, Signaturen,
-Integritäts-Digests, Wiederherstellungs-Token, Mail-Transport-DSNs/-Zugangsdaten
-und absolute Pfade werden niemals ausgegeben.
+Servers eine Schwärzung von Geheimnissen: der vollständige Lizenzschlüssel,
+Lizenz-Authentifizierungsmaterial, Wiederherstellungs-Token,
+Mail-Transport-DSNs/-Zugangsdaten und absolute Pfade werden niemals ausgegeben.
 
 ## Deployment
 

@@ -79,7 +79,7 @@ rollback (`rollbackInterrupted()`).
 ### Mandatory dry run (`RecoveryDryRun`)
 
 A real recovery is refused until a successful dry run exists for the **exact**
-backup + components + vendor strategy (an sha-256 fingerprint). The dry run
+backup + components + vendor strategy (a fingerprint of that selection). The dry run
 validates the archive, checks composer files, atomic-switch capability and disk
 space (archive + snapshot + staged vendor + retained old vendor ≈ 4×) and makes
 no changes, enables no maintenance and restores no database. Changing any

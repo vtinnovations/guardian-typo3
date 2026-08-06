@@ -38,22 +38,23 @@ The panel lives in the public web root. The kernel derives:
 ## Security model
 
 - **Disabled by default.** An un-enabled panel responds like a missing file (404).
-- **Token.** Generated with `random_bytes(36)` (URL-safe base64, ≥43 chars),
-  stored **only as a SHA-256 hash** under `var/guardian/recovery-panel/token.json`
-  (0600). The plaintext is shown **once**, at generation/rotation, never persisted
-  or logged. Later the UI shows only a masked preview. Verification is
-  constant-time (`hash_equals`). `GUARDIAN_RECOVERY_TOKEN` env var overrides.
+- **Token.** Generated from a cryptographically secure random source and stored
+  only in non-recoverable form, in a restricted file outside the web root. The
+  plaintext is shown **once**, at generation or rotation, and is never persisted
+  or logged; afterwards the interface shows only a masked preview. Comparison is
+  timing-safe. A token may also be supplied through the `GUARDIAN_RECOVERY_TOKEN`
+  server environment variable instead of the stored one.
 - **Sessions.** PHP session cookie is `HttpOnly`, `SameSite=Strict`, `Secure` on
   HTTPS. The session id is regenerated after login (fixation defence). Idle
   timeout 15 min, absolute lifetime 1 h. Rotating the token invalidates existing
-  sessions (session stores a token fingerprint).
+  sessions.
 - **CSRF.** A per-session token guards every state-changing request.
-- **Rate limiting.** `PanelRateLimiter` keys attempts by a **hashed** IP under
-  `var/guardian/recovery-panel/rate-limit.json`; 5 failures / 15 min → 15 min
-  lockout; entries auto-expire. Failures return a single generic message and
-  never reveal whether the token prefix was correct.
-- **No secret in the deployed file.** The token lives outside the webroot; the
-  file only compares against the hash.
+- **Rate limiting.** Failed attempts are counted per client without storing the
+  address in recoverable form; 5 failures / 15 min → 15 min lockout; entries
+  auto-expire. Failures return a single generic message that never reveals how
+  close an attempt was.
+- **No secret in the deployed file.** The token lives outside the web root; the
+  deployed file holds no secret of its own.
 - **Fail-safe errors.** `display_errors` off; a global exception handler renders a
   generic message — never a stack trace, class name or absolute path.
 - **Response headers.** `X-Content-Type-Options`, `X-Frame-Options: DENY`,
@@ -62,7 +63,7 @@ The panel lives in the public web root. The kernel derives:
 
 ## Deployment safety
 
-`Infrastructure\Recovery\RecoveryPanelDeployer`:
+Deployment is managed by Guardian and:
 
 - Writes an **ownership signature** marker
   (`GUARDIAN-RECOVERY-PANEL:MANAGED-ENTRYPOINT`) — Guardian only ever removes
@@ -77,19 +78,18 @@ The panel lives in the public web root. The kernel derives:
 
 ```
 var/guardian/recovery-panel/
-  config.json       # { enabled: false (default), filename }
-  token.json        # { algo, hash, preview, created_at } — hash only
-  rate-limit.json   # hashed-IP attempt counters
+  config.json       # panel enabled flag and filename
+  token.json        # authentication material, non-recoverable form only
+  rate-limit.json   # failed-attempt counters
   audit.log         # panel/token/login/recovery lifecycle events (no secrets)
   panel.log         # standalone runtime log
 ```
 
 ## Backend endpoints (admin + Pro; POST for writes; CSRF via route token)
 
-`panelStatus`, `panelSaveFilename`, `panelDeploy`, `panelDisable`,
-`panelTokenGenerate`, `panelRotate`, `panelTest`, `recoveryList`,
-`recoveryPreflight`, `recoveryRun`, `recoveryHistory`
-(see `Configuration/Backend/AjaxRoutes.php`). The raw token is returned only in the
+Panel status, filename, deployment, disabling, token generation and rotation,
+panel test, and the recovery list/preflight/run/history operations are each
+served by their own backend endpoint. The raw token is returned only in the
 generate/rotate response.
 
 ## Enabling (operator procedure)

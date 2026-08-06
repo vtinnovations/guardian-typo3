@@ -51,7 +51,7 @@ Names refine the ones requested in the brief; the mapping is:
 
 Supporting ports added for a clean Phase 1: `WorkingDirectoryProviderInterface`,
 `LockInterface` / `LockFactoryInterface`, `RuntimeConfigurationRepositoryInterface`,
-`ServiceRecordStoreInterface`, `ScheduleRepositoryInterface`.
+`ScheduleRepositoryInterface`, and the ports backing entitlement state.
 
 Interfaces with no Phase-1 adapter are intentional: the seam is fixed now so the
 later destructive pipelines depend on the abstraction, but no destructive
@@ -66,8 +66,9 @@ they carry state, immutable:
 - **Configuration**: `RuntimeConfiguration` (validated, immutable).
 - **Schedule**: `ScheduleFrequency`, `BackupSchedule`, `ScheduleRun`, and the pure
   `ScheduleEvaluator` (ported near-verbatim from Contao; time passed in).
-- **Entitlement**: `Environment\CapabilityTier`, `Environment\HostIdentity` (exact-host
-  binding), `Configuration\ServiceRecord` (the signed record and its date rules).
+- **Entitlement**: value objects describing the licence tier, the host binding
+  and the validity rules. Entitlement internals are intentionally not detailed in
+  this document.
 - **Job**: `JobStatus`/`JobType`/`UpdateMode` enums and the immutable `Job` with a
   guarded state machine (`JobStatus::canTransitionTo`).
 - **Process**: `CommandRequest` (argv-only, shell-impossible) and `CommandResult`.
@@ -80,9 +81,10 @@ they carry state, immutable:
 
 - `Configuration\RuntimeConfigurationService` — read config.
 - `Environment\EnvironmentInspector` — build `EnvironmentCapabilities` (no exec).
-- `Configuration\ActivationService` and `Configuration\RecordIntake` — the three
-  entitlement exchanges; `Environment\EntitlementReader` and
-  `Environment\CapabilityAssertion` — evaluation and the per-feature gate.
+- Entitlement services — activation, refresh, removal, evaluation, and the gate
+  asserted at each protected feature boundary. These are distributed through the
+  layers above rather than concentrated in one place, and are not enumerated
+  here.
 - `Schedule\ScheduleForecastService` + `ScheduleForecast` — read-only "due/next".
 - `Dashboard\DashboardService` — aggregate read model for the module.
 
@@ -96,31 +98,31 @@ section. The 176 KB monolithic Contao Twig template is replaced by:
 ```
 Resources/Private/
 ├── Templates/Guardian/Index.html   the product module: shell + tab panels
-├── Templates/Packages/Index.html   the shared V-T.ONE licence screen (host)
 ├── Partials/Guardian/              Dashboard, Update, Backup, Recovery,
 │                                   Extensions, Settings, Tabs
-└── Partials/Packages/State.html    one product's entitlement, server-rendered
 Resources/Public/
 ├── Css/guardian.css                theme-aware, scoped
-├── JavaScript/guardian.js          the product module's script
-└── JavaScript/vtone-packages.js    the licence screen's script
+└── JavaScript/guardian.js          the product module's script
 ```
+
+The shared V-T.ONE licence screen has its own template, partial and script
+alongside these.
 
 No inline JavaScript. Entitlement state is rendered by the server in both places,
 so neither screen depends on a request completing to show what is stored.
 
-Licence controls exist **only** on the shared screen (`vtone_licensing`, under
-*System*). The product module has no licence panel, no licence endpoints in its
+Licence controls exist **only** on the shared screen under *System → VTOne
+Licensing*. The product module has no licence panel, no licence endpoints in its
 endpoint map and no licence code in its script; its Settings tab links to the
-shared screen. See `LicensingImplementation.md`.
+shared screen.
 
 ## What stays conceptually similar vs. what is redesigned
 
 **Conceptually similar (ported/adapted):**
 - `ScheduleEvaluator` — logic essentially unchanged.
 - `BackupLock` → `FlockLock` — same flock + stale-reclaim behaviour.
-- Entitlement interpretation, runtime-config validation, job lifecycle, archive
-  safety, path containment, secret redaction — rules preserved, repackaged.
+- Runtime-config validation, job lifecycle, archive safety, path containment and
+  secret redaction — rules preserved, repackaged.
 
 **Fully redesigned:**
 - Backend UI (Twig monolith → Fluid + external assets).

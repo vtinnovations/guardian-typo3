@@ -28,7 +28,7 @@ The objectives are:
 
 - restrict all Guardian functionality to TYPO3 backend administrators;
 - protect every state-changing request against forgery;
-- enforce Free/Pro entitlements on the server, not in the browser;
+- enforce licence entitlements on the server, not in the browser;
 - run external processes without any shell interpretation;
 - contain all Guardian activity to well-defined filesystem boundaries;
 - make destructive operations recoverable, with automatic rollback on failure;
@@ -61,40 +61,51 @@ The objectives are:
 
 ## 4. Licence and entitlement security
 
-Licensing is enforced as a security boundary. The following properties hold; the
-internal mechanics are deliberately not described here.
+Guardian requires an activated V-T.ONE licence, and licensing is enforced as a
+security boundary. This section states the properties administrators and
+reviewers can rely on. How those properties are implemented, and where in the
+product they are implemented, is deliberately not described.
 
-- **Server-side enforcement.** Entitlement decisions are made on the server.
-  Any interface state that appears to lock or unlock a feature is a convenience
-  only and is never trusted for access control.
+- **Server-side enforcement.** Entitlement decisions are made on the server, and
+  both Free and Pro capabilities are enforced there. Any interface state that
+  appears to lock or unlock a feature is a convenience only and is never trusted
+  for access control.
 - **Private storage.** Licence data is stored in a private runtime location
   outside the public web root, with restrictive file permissions, and is never
   served to the browser.
-- **Local authenticity and integrity checks.** Guardian validates the
-  authenticity and integrity of its stored licence locally before honouring it,
-  so a tampered or substituted licence is not accepted.
-- **Trusted remote verification only when authorised.** Guardian contacts the
-  licence service only for explicit, administrator-initiated activation or refresh
-  operations. Routine entitlement checks are performed locally and require no
-  network access, so normal operation continues offline within the licence's
-  validity.
+- **Authenticated, integrity-protected licence data.** Licence data is validated
+  for authenticity and integrity before it is honoured, so a modified,
+  hand-written or substituted licence is not accepted. Verification relies on
+  material that only the vendor can produce; the distributed product can check a
+  licence but cannot issue one.
+- **Local routine checks.** Ordinary entitlement checks are performed locally and
+  require no network access, so normal operation continues offline for as long as
+  the licence is valid.
+- **Remote contact only when warranted.** Guardian contacts V-T.ONE during
+  activation, during an explicit administrator-initiated refresh, and when
+  V-T.ONE sends an authorised licence update to the installation.
 - **Atomic updates.** A licence update is applied atomically: either the complete
   new licence replaces the previous one, or the previous one is preserved. A
-  failed or unreachable update never revokes a currently valid licence.
+  failed or unreachable update never revokes a currently valid licence, and an
+  update cannot move an installation to an older licence than it already holds.
 - **Fail-restricted, not fail-open and not fail-closed-globally.** If licence
   validation fails, only the restricted (licensed) Guardian functions are
   disabled; the administrator retains access to status and licence-management
-  views so the situation can be corrected.
-- **Free and Pro entitlements.** Both tiers require an activated, signed record
-  and are enforced server-side on every request. The accepted package vocabulary
-  is closed (`free`, `pro`); any other value is refused outright rather than
-  treated as a lesser tier.
+  views so the situation can be corrected. Nothing is deleted or corrupted on
+  failure.
+- **Free and Pro entitlements.** Both tiers require an activated licence and are
+  enforced on the server for every protected operation, including operations
+  reached from the command line, the scheduler and background workers.
+- **Installation binding.** A licence authorises specific host names, and
+  entitlement additionally requires one of them to be configured for this
+  installation in TYPO3 Site Configuration. Copying licence data to another
+  installation does not carry entitlement with it.
 - **Authorised fallback.** An expired Pro licence keeps the Free feature set only
-  when that same signed record carries `free_available`; otherwise expiry removes
-  access to every restricted function. An expired Free licence has no tier
-  beneath it and always ends. No Free state is ever synthesised locally.
-- **No secret exposure.** Licence keys and any authentication secrets are never
-  sent to the browser, embedded in client-side state, or written to logs.
+  when the licence itself permits it; otherwise expiry removes access to every
+  restricted function. No licensed state is ever created locally.
+- **No secret exposure.** The full licence key and any authentication material
+  are never sent to the browser, embedded in client-side state, or written to
+  ordinary logs.
 
 ## 5. Process execution
 
@@ -181,8 +192,9 @@ and to remove it when it is not needed.
 - **Secret redaction.** Log output and API responses pass through centralised
   redaction so that credentials, tokens, transport connection strings, and
   similar values are removed before anything leaves the server.
-- **No sensitive values in the browser.** Licence keys, authentication secrets,
-  integrity material, and recovery tokens are never delivered to the client.
+- **No sensitive values in the browser.** The full licence key, licence
+  authentication material, and recovery tokens are never delivered to the client.
+  Logging is redacted so that this material does not reach ordinary logs either.
 - **Security-relevant logging.** High-impact operations and failures are recorded
   in Guardian's job logs and the TYPO3 system log, in a form that supports
   auditing without disclosing secrets or absolute installation paths.
@@ -192,7 +204,8 @@ and to remove it when it is not needed.
 - **Fixed trusted services.** Guardian communicates with a small, fixed set of
   trusted V-T.ONE HTTPS services for licence activation, refresh, and an
   operational usage signal, plus the public extension-repository lookups used by
-  the Extensions section.
+  the Extensions section. The destinations are fixed in the product and cannot be
+  redirected by configuration, by request data or by a remote response.
 - **TLS enforced.** Transport-layer security verification is always enabled for
   these requests; certificate or host verification is never disabled.
 - **Minimal data.** The operational signal transmits only the product identifier
