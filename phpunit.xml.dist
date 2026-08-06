@@ -2,11 +2,17 @@
 <!--
     PHPUnit configuration for Guardian's CMS-independent unit tests.
 
-    These tests exercise pure Domain logic only and do NOT bootstrap TYPO3, so
-    they can run with a plain `vendor/bin/phpunit` once dependencies are
-    installed. They have NOT been executed in this environment (no PHP/Composer
-    runtime is available here); see Documentation/Testing.md for the commands and
-    the TYPO3 13.4 / 14 test matrix.
+    These tests do NOT bootstrap TYPO3. Most exercise pure Domain, Application
+    and Infrastructure logic; the handful under Tests/Unit/Integration,
+    Tests/Unit/Middleware and Tests/Unit/Typo3 type-hint TYPO3 classes and so
+    need the framework on the autoloader, which `composer install` provides
+    through the typo3/cms-core requirement. Either way the suite runs with a
+    plain `vendor/bin/phpunit` once dependencies are installed; see
+    Documentation/Testing.md for the commands and the TYPO3 13.4 / 14 matrix.
+
+    Running it therefore requires `composer install` first — a working copy with
+    no vendor/ cannot execute it, and that is the only reason it would be
+    reported as not executed.
 
     The attributes used below (source/include, cacheDirectory, failOnWarning,
     failOnRisky) and the #[Test]/#[DataProvider] attributes in the tests are all

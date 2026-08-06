@@ -2,27 +2,22 @@
 
 <div class="updater-tab-content" data-tab-panel="settings">
 
-    <f:comment>── Pro License (v-t.one) ──</f:comment>
+    <f:comment>
+        Licence controls are not here. They live in the shared V-T.ONE screen
+        (System → VTOne Licensing), which is the one place every V-T.ONE product
+        is activated from. This card only points at it, and holds no state of
+        its own.
+    </f:comment>
     <div class="updater-card">
         <h3>🔑 <f:translate key="settings.license.title" extensionName="GuardianTypo3"/></h3>
         <p style="color:var(--updater-text-muted);font-size:.88rem;margin:.3rem 0 .9rem;line-height:1.5;">
-            <f:translate key="settings.license.description" extensionName="GuardianTypo3"/>
+            <f:translate key="settings.license.moved" extensionName="GuardianTypo3"/>
         </p>
-        <p style="font-size:.85rem;margin:.3rem 0 .9rem;">
-            🔗 <f:translate key="settings.license.obtain" extensionName="GuardianTypo3"/>
-            <a href="https://www.v-t.one" target="_blank" rel="noopener" style="color:var(--updater-text-link);font-weight:600;">v-t.one</a> (Free &amp; Pro).
-        </p>
-
-        <div id="proLicenseState" style="margin-bottom:.8rem;font-size:.85rem;color:var(--updater-text-muted);"><f:translate key="js.license.loadingState" extensionName="GuardianTypo3"/></div>
-
-        <div class="updater-recovery-row" style="margin-bottom:.6rem;">
-            <label style="min-width:120px;"><f:translate key="settings.license.key" extensionName="GuardianTypo3"/></label>
-            <input type="text" id="proLicenseInput" placeholder="{f:translate(key: 'settings.license.placeholder', extensionName: 'GuardianTypo3')}" style="flex:1;font-family:monospace;" maxlength="190" autocomplete="off" spellcheck="false">
-        </div>
-
-        <button type="button" id="proLicenseActivateButton" class="updater-btn" disabled style="font-size:.85rem;padding:.45rem .9rem;"><f:if condition="{isLicensed}"><f:then><f:translate key="js.license.update" extensionName="GuardianTypo3"/></f:then><f:else><f:translate key="settings.license.activate" extensionName="GuardianTypo3"/></f:else></f:if></button>
-        <button type="button" id="proLicenseRemoveButton" class="updater-btn updater-btn-secondary" disabled style="font-size:.85rem;padding:.45rem .9rem;"><f:translate key="settings.license.remove" extensionName="GuardianTypo3"/></button>
-        <span id="proLicenseStatus" role="status" aria-live="polite" style="margin-left:.7rem;font-size:.85rem;"></span>
+        <f:if condition="{licensingUrl}">
+            <a class="updater-btn updater-btn-secondary" style="font-size:.85rem;padding:.45rem .9rem;" href="{licensingUrl}">
+                🔑 <f:translate key="settings.license.open" extensionName="GuardianTypo3"/>
+            </a>
+        </f:if>
     </div>
 
     <f:comment>── Recovery e-mail settings ──</f:comment>

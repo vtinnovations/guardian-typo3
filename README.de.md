@@ -212,14 +212,31 @@ Vollständige Composer-basierte Erweiterungsverwaltung (Pro):
   kann (Erkennung verwaister Verzeichnisse).
 - Durchgehend Live-**Fortschritt, strukturierte Fehlerberichte und Job-Logs**.
 
+### Lizenz (System → VTOne Licensing)
+
+- **Lizenz**: eine Lizenz aktivieren, **Lizenz aktualisieren** und entfernen.
+  Diese Bedienelemente liegen an genau einer Stelle: unter **System → VTOne
+  Licensing**, einer gemeinsamen Seite mit je einem Abschnitt pro installiertem
+  V-T.ONE-Produkt. Der Einstellungs-Tab von Guardian verlinkt dorthin und enthält
+  selbst keine Lizenzsteuerung mehr. Die Validierung erfolgt **lokal** aus dem
+  gespeicherten Dokument (Ausstellungs-, Start-, Ablauf- und
+  **Lebenslang**-Daten), sodass eine geprüfte Lizenz offline weiterarbeitet, bis
+  sie tatsächlich abläuft. Guardian wird als **Free oder Pro** vertrieben, beide
+  benötigen einen aktivierten Schlüssel; ein signiertes Dokument mit einem
+  anderen Paketwert wird abgelehnt. Eine **abgelaufene Pro-Lizenz behält den
+  Free-Funktionsumfang**, wenn – und nur wenn – derselbe signierte Datensatz
+  `free_available` enthält. Eine **MD5-Speicher-Integritäts**-Prüfung und die
+  **Ed25519-Signaturprüfung** werden bei jedem Lesen angewendet.
+
+  Eine Lizenz umfasst eine **signierte Menge exakter Hostnamen**. Guardian gewährt
+  Pro oder Free, wenn einer dieser Hosts auch in der **TYPO3-Site-Konfiguration**
+  konfiguriert ist – als `base` einer Site, `base` einer Sprache oder Eintrag unter
+  `baseVariants`. Mehrere Domains sind zulässig; eine exakte Übereinstimmung
+  genügt. `www.example.com` und `example.com` sind verschiedene Hosts, und eine
+  Installation ohne Site-Konfiguration kann nicht lizenziert werden.
+
 ### Settings (Einstellungen)
 
-- **Lizenz**: eine Lizenz aktivieren, **Update License** und entfernen. Die
-  Validierung erfolgt **lokal** aus dem gespeicherten Dokument (Ausstellungs-,
-  Start-, Ablauf- und **Lebenslang**-Daten), sodass eine geprüfte Lizenz offline
-  weiterarbeitet, bis sie tatsächlich abläuft. **Free-/Pro-Berechtigungen**, ein
-  **Free-Fallback bei abgelaufener Pro-Lizenz**, eine **MD5-Speicher-Integritäts**-Prüfung
-  und eine optionale **Ed25519-Signatur**-Ebene werden angewendet.
 - **PHP-CLI-Einstellungen**: den Pfad zur PHP-CLI-Binärdatei automatisch erkennen,
   testen und speichern.
 - **Wiederherstellungs-E-Mail**: Empfänger/Absender konfigurieren und eine
@@ -230,8 +247,9 @@ Vollständige Composer-basierte Erweiterungsverwaltung (Pro):
 ## Lizenz- und Berechtigungsmatrix
 
 Der Zugriff wird **serverseitig** an jedem Endpunkt durchgesetzt
-(Administrator-Gate → Lizenz-Gate). „Free“ bedeutet eine beliebige gültige
-Lizenz; „Pro“ bedeutet eine gültige `pro`-Lizenz.
+(Administrator-Gate → Lizenz-Gate). „Free“ bedeutet eine aktivierte
+`free`-Lizenz oder eine abgelaufene `pro`-Lizenz, deren signierter Datensatz den
+Free-Fallback erlaubt; „Pro“ bedeutet eine aktive `pro`-Lizenz.
 
 | Funktion | Zugriff |
 | --- | --- |
@@ -241,7 +259,7 @@ Lizenz; „Pro“ bedeutet eine gültige `pro`-Lizenz.
 | Extensions | **Nur Pro** |
 | Recovery (Backend) | **Nur Pro** |
 | Eigenständige Wiederherstellung (bereitstellen & verwalten) | **Nur Pro** |
-| Lizenzaktivierung / Update / Entfernen (Einstellungen) | **Verfügbar** (Administrator) |
+| Lizenzaktivierung / Update / Entfernen (VTOne Licensing) | **Verfügbar** (Administrator) |
 | Vor-Update-Analyse (Dashboard) | **Verfügbar** (Administrator) |
 
 Effektiver Zugriff je Lizenzzustand:
@@ -251,13 +269,15 @@ Effektiver Zugriff je Lizenzzustand:
 | Keine Lizenz | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
 | Aktive **Free** | Verfügbar | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
 | Aktive **Pro** | Verfügbar | Verfügbar | Verfügbar | Verfügbar | Verfügbar | Verfügbar |
-| Abgelaufene **Pro** mit Free-Fallback | Verfügbar (Free-Fallback) | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
-| Abgelaufene Lizenz ohne Fallback | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
+| Noch nicht gestartet | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
+| Abgelaufene **Pro** mit signiertem `free_available` | Verfügbar (Free-Fallback) | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
+| Abgelaufene **Pro** ohne dieses Flag oder abgelaufene **Free** | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
+| Anderes Paket als `free` / `pro` | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
 | Fehlerhaft / ungültig / Integritäts- oder Signaturfehler / Domain-Konflikt | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend | Nicht zutreffend |
 
 Ohne **gültige Lizenz** sind nur Dashboard und Einstellungen nutzbar (damit eine
 Lizenz eingegeben werden kann). Verwendete Statusbezeichnungen: **Verfügbar**,
-**Nur Pro**, **Free und Pro**, **Bedingt**, **Nicht zutreffend**.
+**Nur Pro**, **Free und Pro**, **Nicht zutreffend**.
 
 ## Sicherheitsarchitektur
 
@@ -316,15 +336,24 @@ Recovery-Panel-Datei im Web-Root und wiederhergestellte Projektdateien).
 
 ## Externe V-T.ONE-Kommunikation
 
-Guardian kontaktiert genau drei V-T.ONE-Endpunkte, über TLS, und verhält sich
-ausfallsicher, falls einer nicht erreichbar ist:
+Guardian kontaktiert genau zwei V-T.ONE-Adressen, über TLS, und verhält sich
+ausfallsicher, falls eine nicht erreichbar ist:
 
-- **Lizenzprüfung** – `https://www.v-t.one/api/v1/verify`
-- **Lizenzaktualisierung („Update License“)** – `https://www.v-t.one/rest/api/v1/guardian-license-updater`
-- **Invocation-Signal** – `https://www.v-t.one/rest/api/v1/log-envoke`
-  (Fire-and-forget; überträgt **ausschließlich** den Projektbezeichner und die
-  normalisierte Domain; blockiert niemals den Request oder die
-  Lizenzentscheidung)
+- **Lizenzprüfung und -aktualisierung** – `https://www.v-t.one/api/v1/verify`
+  (Aktivierung sowie **Update License**, das ein `refresh` an dieselbe Adresse ist)
+- **Signale** – `https://www.v-t.one/rest/api/v1/log-envoke`, Fire-and-forget,
+  blockiert niemals den Request oder die Lizenzentscheidung:
+  - einmal pro Web-Aufruf, überträgt **ausschließlich** den Projektbezeichner und
+    die normalisierte Domain;
+  - einmal pro angemeldeter Backend-Session, wenn eine Administratorin das Modul
+    erstmals öffnet, überträgt **ausschließlich** die normalisierte Domain und den
+    Lizenzschlüssel. Das geschieht Server-zu-Server; der Schlüssel erreicht weder
+    den Browser noch die Logs.
+
+Guardian **empfängt** zusätzlich einen maschinellen Aufruf: V-T.ONE kann eine
+Lizenzaktualisierung an `https://<diese Installation>/rest/api/v1/guardian-license-updater`
+senden. Das ist ein eingehender Pfad dieser Installation, keine Adresse, die
+Guardian aufruft, und er wird ausschließlich per Signatur authentifiziert.
 
 Es findet kein weiteres ausgehendes HTTP statt, außer den Abfragen des TYPO3
 Extension Repository / von Packagist im Reiter Extensions.
@@ -363,8 +392,9 @@ Registrierte Konsolenbefehle:
 
 - `guardian:backup:run-due` – aktuell fällige geplante Backups ausführen (Cron/Scheduler).
 - `guardian:update:run` – interner abgekoppelter Update-/Extensions-Worker (von Guardian gestartet; nicht manuell auszuführen).
-- `guardian:license:digest` – Entwicklerwerkzeug zum Fixieren des
-  Speicher-Integritäts-Digests für eine eingefrorene Lizenzdatei.
+- `guardian:release:check` – prüft, ob dieses Build ausgeliefert werden darf
+  (prüft die eingebetteten Verifikationsschlüssel). Beendet sich bei einem
+  Problem mit einem Fehlercode.
 
 ## Cache leeren
 

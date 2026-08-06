@@ -189,14 +189,29 @@ Full Composer-based extension management (Pro):
   can be **re-uploaded and reinstalled** cleanly (orphaned-directory detection).
 - Live **progress, structured error reporting and job logs** throughout.
 
+### Licence (System → VTOne Licensing)
+
+- **Licence**: activate, **Update Licence** and remove a licence. These controls
+  live in one place — **System → VTOne Licensing**, a shared screen that lists one
+  section per installed V-T.ONE product. Guardian's Settings tab links to it and
+  holds no licence controls of its own. Validation is **local** from the stored
+  document (issue, start, expiry and **lifetime** dates), so a verified licence
+  keeps working offline until it genuinely expires. Guardian is sold as **Free or
+  Pro**, and both require an activated key; a signed document naming any other
+  package value is refused. An **expired Pro licence keeps the Free feature set**
+  when — and only when — that same signed record carries `free_available`. An
+  **MD5 store-integrity** check and **Ed25519 signature** verification are
+  applied on every read.
+
+  A licence covers a **signed set of exact host names**. Guardian grants Pro or
+  Free when one of those hosts is also configured in **TYPO3 Site
+  Configuration** — a site `base`, a language `base` or a `baseVariants` entry.
+  Several domains may be configured; one exact match is enough. `www.example.com`
+  and `example.com` are different hosts, and an installation with no site
+  configuration cannot be licensed.
+
 ### Settings
 
-- **Licence**: activate, **Update License**, and remove a licence. Validation is
-  **local** from the stored document (issue, start, expiry and **lifetime**
-  dates), so a verified licence keeps working offline until it genuinely expires.
-  **Free/Pro entitlements**, an **expired-Pro → Free fallback**, an **MD5
-  store-integrity** check and an optional **Ed25519 signature** layer are all
-  applied.
 - **PHP CLI settings**: auto-detect, test and persist the PHP CLI binary path.
 - **Recovery email**: configure recipient/sender and **send a test email**
   (through `MailerInterface`).
@@ -205,7 +220,8 @@ Full Composer-based extension management (Pro):
 ## Licence and entitlement matrix
 
 Access is enforced **server-side** on every endpoint (administrator gate → licence
-gate). “Free” means any valid licence; “Pro” means a valid `pro` licence.
+gate). “Free” means an activated `free` licence, or an expired `pro` licence whose
+signed record authorises the Free fallback; “Pro” means an active `pro` licence.
 
 | Feature | Access |
 | --- | --- |
@@ -225,13 +241,15 @@ Effective access per licence state:
 | No licence | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
 | Active **Free** | Available | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
 | Active **Pro** | Available | Available | Available | Available | Available | Available |
-| Expired **Pro** with Free fallback | Available (Free fallback) | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
-| Expired licence without fallback | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| Not yet started | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| Expired **Pro** with signed `free_available` | Available (Free fallback) | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| Expired **Pro** without it, or expired **Free** | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| Package other than `free` / `pro` | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
 | Malformed / invalid / integrity or signature failure / domain mismatch | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
 
 With **no valid licence**, only the Dashboard and Settings are usable (so a
 licence can be entered). Status labels used above: **Available**, **Pro only**,
-**Free and Pro**, **Conditional**, **Not applicable**.
+**Free and Pro**, **Not applicable**.
 
 ## Security architecture
 
@@ -283,14 +301,23 @@ project files).
 
 ## External V-T.ONE communication
 
-Guardian contacts exactly three V-T.ONE endpoints, over TLS, and fails safe if
-any is unreachable:
+Guardian contacts exactly two V-T.ONE addresses, over TLS, and fails safe if
+either is unreachable:
 
-- **Licence verification** — `https://www.v-t.one/api/v1/verify`
-- **Licence update ("Update License")** — `https://www.v-t.one/rest/api/v1/guardian-license-updater`
-- **Invocation signal** — `https://www.v-t.one/rest/api/v1/log-envoke`
-  (fire-and-forget; transmits **only** the project identifier and the normalized
-  domain; never blocks the request or the licence decision)
+- **Licence verification and update** — `https://www.v-t.one/api/v1/verify`
+  (activation, and **Update License**, which is a `refresh` to the same address)
+- **Signals** — `https://www.v-t.one/rest/api/v1/log-envoke`, fire-and-forget,
+  never blocking the request or the licence decision:
+  - once per web invocation, transmitting **only** the project identifier and the
+    normalized domain;
+  - once per signed-in backend session, when an administrator first opens the
+    module, transmitting **only** the normalized domain and the licence key. This
+    is server-to-server; the key never reaches the browser or the logs.
+
+Guardian also **receives** one machine-facing call. V-T.ONE may push a licence
+update to `https://<this installation>/rest/api/v1/guardian-license-updater`.
+That is an inbound path this installation serves, not an address Guardian calls,
+and it is authenticated by signature alone.
 
 No other outbound HTTP is performed except the TYPO3 Extension Repository /
 Packagist lookups used by the Extensions tab.
@@ -327,7 +354,7 @@ Registered console commands:
 
 - `guardian:backup:run-due` — run scheduled backups that are currently due (cron/Scheduler).
 - `guardian:update:run` — internal detached update/extension worker (spawned by Guardian; not run by hand).
-- `guardian:license:digest` — developer tool to pin the licence store-integrity digest for a frozen licence file.
+- `guardian:release:check` — verifies this build is fit to distribute (checks the pinned verification keys). Exits non-zero when it is not.
 
 ## Cache clearing
 

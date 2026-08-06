@@ -14,6 +14,7 @@ namespace Vtinnovations\GuardianTypo3\Application\Backup;
 
 use Vtinnovations\GuardianTypo3\Application\Contract\ScheduleConfigStoreInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\SystemLoggerInterface;
+use Vtinnovations\GuardianTypo3\Application\Environment\CapabilityAssertion;
 use Vtinnovations\GuardianTypo3\Domain\Backup\BackupType;
 use Vtinnovations\GuardianTypo3\Domain\Clock\ClockInterface;
 use Vtinnovations\GuardianTypo3\Domain\Exception\GuardianException;
@@ -40,6 +41,7 @@ final class ScheduledBackupRunner
         private readonly BackupNotificationService $notifier,
         private readonly ClockInterface $clock,
         private readonly SystemLoggerInterface $systemLogger,
+        private readonly CapabilityAssertion $capability,
     ) {
     }
 
@@ -51,6 +53,8 @@ final class ScheduledBackupRunner
      */
     public function runProfile(string $type): BackupResult
     {
+        $this->capability->requirePro('Running a scheduled backup profile');
+
         $backupType = $type === 'full' ? BackupType::Full : BackupType::Mini;
         $config = $this->configStore->loadConfig();
         $slot = \is_array($config[$type] ?? null) ? $config[$type] : [];
@@ -80,6 +84,8 @@ final class ScheduledBackupRunner
      */
     public function runDue(?\DateTimeImmutable $now = null): array
     {
+        $this->capability->requirePro('Running scheduled backups');
+
         $now ??= $this->clock->now();
         $config = $this->configStore->loadConfig();
         $state = $this->configStore->loadState();

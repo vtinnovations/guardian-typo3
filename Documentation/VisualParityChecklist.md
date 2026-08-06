@@ -27,7 +27,7 @@ markup.
 | Recovery · filename | `.updater-sched-row` | `Recovery` | filename + save | read-only; save disabled | `loadRuntime` | none |
 | Recovery · restore/panel | `.updater-card/.updater-recovery-url` | `Recovery` | explanations, standalone URL | identical | `setStandaloneUrl` | panel ships later |
 | Recovery · token | `.updater-token-display/.updater-token-source-badge` | `Recovery` (JS-injected) | token, source, rotate | source shown; token/rotate disabled | `loadPanelConfig` | never reveals/generates token |
-| Settings · license | `.updater-recovery-row` | `Settings` | key input, activate, clear | read-only status; write disabled | `loadLicenseStatus`/`renderLicenseState` | activate/clear disabled |
+| Licence · activate/update/remove | `.updater-card`, `.vtone-package` | `Templates/Packages/Index` (System → VTOne Licensing) | key input, activate, update, remove | server-rendered state + all three actions | `vtone-packages.js` | moved off the Settings tab: one surface for every V-T.ONE product |
 | Settings · recovery email | `.updater-recovery-row` | `Settings` | recipient/sender, save, test | read-only; write disabled | `loadRuntime` | disabled |
 | Settings · PHP CLI | `.updater-sched-row` | `Settings` | binary, test, save | read-only; write disabled | `loadRuntime` | disabled |
 | Upgrade dialog | `.updater-upgrade-modal` | `Index` | modal on locked-tab click | identical | `openUpgradeModal` | none |

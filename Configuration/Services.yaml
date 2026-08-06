@@ -27,7 +27,6 @@ services:
   Vtinnovations\GuardianTypo3\Domain\Filesystem\PathNormalizer: ~
   Vtinnovations\GuardianTypo3\Domain\Archive\ArchiveEntryValidator: ~
   Vtinnovations\GuardianTypo3\Domain\Schedule\ScheduleEvaluator: ~
-  Vtinnovations\GuardianTypo3\Domain\License\DomainNormalizer: ~
 
   # The backend module controller and the AJAX controller are resolved by
   # TYPO3's module/AJAX routing, so they must be publicly retrievable.
@@ -35,6 +34,21 @@ services:
     public: true
 
   Vtinnovations\GuardianTypo3\Controller\Backend\GuardianAjaxController:
+    public: true
+
+  # Host of the shared V-T.ONE licence screen, resolved by module routing.
+  Vtinnovations\GuardianTypo3\Controller\Backend\PackageOverviewController:
+    public: true
+
+  # This product's section of that screen. The shared host resolves registered
+  # sections from the container by class name, so it must be retrievable.
+  Vtinnovations\GuardianTypo3\Typo3\Backend\GuardianPackageSection:
+    public: true
+
+  # Frontend PSR-15 middleware serving Guardian's one machine-facing REST path.
+  # TYPO3's middleware dispatcher resolves it through the container, so it must
+  # be public.
+  Vtinnovations\GuardianTypo3\Middleware\RestEndpointMiddleware:
     public: true
 
   # Console command (run due scheduled backups from cron / the TYPO3 Scheduler).
@@ -55,11 +69,11 @@ services:
     tags:
       - { name: 'console.command', command: 'guardian:self-maintenance:run' }
 
-  # Isolated developer tool: prints the pinned integrity representation.
-  Vtinnovations\GuardianTypo3\Command\LicenseDigestCommand:
+  # Build gate: refuses to bless a package whose verification keys are missing.
+  Vtinnovations\GuardianTypo3\Command\ReleaseCheckCommand:
     public: true
     tags:
-      - { name: 'console.command', command: 'guardian:license:digest' }
+      - { name: 'console.command', command: 'guardian:release:check' }
 
   # ── Port → adapter bindings ────────────────────────────────────────────────
   Vtinnovations\GuardianTypo3\Domain\Clock\ClockInterface:
@@ -95,17 +109,29 @@ services:
   Vtinnovations\GuardianTypo3\Application\Contract\RuntimeConfigurationRepositoryInterface:
     alias: Vtinnovations\GuardianTypo3\Infrastructure\Configuration\JsonRuntimeConfigurationRepository
 
-  Vtinnovations\GuardianTypo3\Application\Contract\LicenseStateRepositoryInterface:
-    alias: Vtinnovations\GuardianTypo3\Infrastructure\License\JsonLicenseStateRepository
+  Vtinnovations\GuardianTypo3\Application\Contract\ServiceRecordStoreInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Configuration\SealedRecordStore
 
-  Vtinnovations\GuardianTypo3\Application\Contract\LicenseVerifierInterface:
-    alias: Vtinnovations\GuardianTypo3\Infrastructure\License\VtOneLicenseVerifier
+  Vtinnovations\GuardianTypo3\Application\Contract\RecordExchangeInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Registry\RecordExchangeClient
 
-  Vtinnovations\GuardianTypo3\Application\Contract\LicenseUpdaterInterface:
-    alias: Vtinnovations\GuardianTypo3\Infrastructure\License\VtOneLicenseUpdater
+  Vtinnovations\GuardianTypo3\Application\Contract\InstallationIdentityInterface:
+    alias: Vtinnovations\GuardianTypo3\Typo3\Environment\InstallationIdentity
 
-  Vtinnovations\GuardianTypo3\Infrastructure\License\Signal\SignalTransportInterface:
-    alias: Vtinnovations\GuardianTypo3\Infrastructure\License\Signal\CurlSignalTransport
+  # The configured-host inventory comes from TYPO3 Site Configuration, never from
+  # request data.
+  Vtinnovations\GuardianTypo3\Application\Contract\ConfiguredHostsInterface:
+    alias: Vtinnovations\GuardianTypo3\Typo3\Environment\SiteHostInventory
+
+  # Once-per-session claim, held in the authenticated backend session.
+  Vtinnovations\GuardianTypo3\Application\Contract\SessionEntryClaimInterface:
+    alias: Vtinnovations\GuardianTypo3\Typo3\Environment\BackendSessionClaim
+
+  Vtinnovations\GuardianTypo3\Infrastructure\Registry\Transport\PingTransportInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Registry\Transport\CurlPingTransport
+
+  Vtinnovations\GuardianTypo3\Infrastructure\Registry\Transport\ExchangeTransportInterface:
+    alias: Vtinnovations\GuardianTypo3\Infrastructure\Registry\Transport\RequestFactoryExchangeTransport
 
   Vtinnovations\GuardianTypo3\Application\Contract\ScheduleRepositoryInterface:
     alias: Vtinnovations\GuardianTypo3\Infrastructure\Schedule\JsonScheduleRepository

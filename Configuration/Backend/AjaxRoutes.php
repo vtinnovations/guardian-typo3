@@ -17,9 +17,13 @@ use Vtinnovations\GuardianTypo3\Controller\Backend\GuardianAjaxController;
  *
  * TYPO3 backend AJAX routes are automatically CSRF-protected (the generated URL
  * carries a route token) and require an authenticated backend user; the
- * controller additionally asserts administrator rights. License activation and
- * removal are the only state-changing routes in this phase; all other exposed
- * endpoints remain read-only. The route API is identical on TYPO3 13.4 and 14.
+ * controller additionally asserts administrator rights. The route API is
+ * identical on TYPO3 13.4 and 14.
+ *
+ * The four entitlement routes below — read, activate, refresh, remove — are the
+ * only ones of their kind in this extension. They are reached from the shared
+ * V-T.ONE screen, which is the single administrator-facing place a licence is
+ * managed from; nothing else posts to them.
  */
 return [
     'guardian_license_status' => [
@@ -29,6 +33,10 @@ return [
     'guardian_license_activate' => [
         'path' => '/guardian/license-activate',
         'target' => GuardianAjaxController::class . '::licenseActivate',
+    ],
+    'guardian_license_refresh' => [
+        'path' => '/guardian/license-refresh',
+        'target' => GuardianAjaxController::class . '::licenseRefresh',
     ],
     'guardian_license_clear' => [
         'path' => '/guardian/license-clear',

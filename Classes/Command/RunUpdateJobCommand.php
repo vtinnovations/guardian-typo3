@@ -17,6 +17,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Vtinnovations\GuardianTypo3\Application\Update\UpdateJobRunner;
+use Vtinnovations\GuardianTypo3\Domain\Exception\GuardianException;
 use Vtinnovations\GuardianTypo3\Infrastructure\Update\UpdateJobStore;
 
 /**
@@ -58,7 +59,14 @@ final class RunUpdateJobCommand extends Command
             return Command::SUCCESS;
         }
 
-        $this->runner->run($job);
+        try {
+            $this->runner->run($job);
+        } catch (GuardianException $e) {
+            $output->writeln('<error>' . $e->getMessage() . '</error>');
+
+            return Command::FAILURE;
+        }
+
         $final = $this->store->getArchived($jobId);
         $status = $final?->status->value ?? 'unknown';
         $output->writeln('Job ' . $jobId . ' finished with status: ' . $status);

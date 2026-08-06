@@ -15,6 +15,7 @@ namespace Vtinnovations\GuardianTypo3\Application\Recovery;
 use Vtinnovations\GuardianTypo3\Application\Backup\BackupService;
 use Vtinnovations\GuardianTypo3\Application\Backup\ComponentSelection;
 use Vtinnovations\GuardianTypo3\Application\Contract\DatabaseImporterInterface;
+use Vtinnovations\GuardianTypo3\Application\Environment\CapabilityAssertion;
 use Vtinnovations\GuardianTypo3\Application\Contract\LockFactoryInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\MaintenanceModeInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\RecoveryHistoryStoreInterface;
@@ -84,6 +85,7 @@ final class RestoreService
         private readonly RecoveryTransactionJournal $journal,
         private readonly SymfonyProcessCommandExecutor $executor,
         private readonly ComposerEnvironment $composerEnvironment,
+        private readonly CapabilityAssertion $capability,
     ) {
     }
 
@@ -98,6 +100,8 @@ final class RestoreService
         bool $confirm,
         string $vendorStrategy = 'rebuild',
     ): RecoveryResult {
+        $this->capability->requirePro('Restoring a backup');
+
         if (!$confirm) {
             throw new GuardianException('Recovery must be explicitly confirmed.');
         }

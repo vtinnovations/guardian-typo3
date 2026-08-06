@@ -16,6 +16,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Vtinnovations\GuardianTypo3\Application\Backup\ScheduledBackupRunner;
+use Vtinnovations\GuardianTypo3\Domain\Exception\GuardianException;
 
 /**
  * Runs whichever scheduled backup profiles are currently due.
@@ -42,8 +43,18 @@ final class RunDueBackupsCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        // A console run is held to the same entitlement as the backend: the
+        // command reports the refusal instead of failing somewhere deeper.
+        try {
+            $due = $this->runner->runDue();
+        } catch (GuardianException $e) {
+            $output->writeln('<error>' . $e->getMessage() . '</error>');
+
+            return Command::FAILURE;
+        }
+
         $exit = Command::SUCCESS;
-        foreach ($this->runner->runDue() as $type => $result) {
+        foreach ($due as $type => $result) {
             $line = sprintf('[%s] %s: %s', $type, $result['status'], $result['message']);
             $output->writeln($line);
             if ($result['status'] === 'error') {

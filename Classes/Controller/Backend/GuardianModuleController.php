@@ -21,10 +21,12 @@ use TYPO3\CMS\Core\Page\PageRenderer;
 use Vtinnovations\GuardianTypo3\Application\Configuration\RuntimeConfigurationService;
 use Vtinnovations\GuardianTypo3\Application\Contract\BackendAuthorizationInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\ProjectEnvironmentInterface;
-use Vtinnovations\GuardianTypo3\Application\License\LicenseManager;
-use Vtinnovations\GuardianTypo3\Domain\License\LicenseTier;
+use Vtinnovations\GuardianTypo3\Application\Environment\EntitlementReader;
+use Vtinnovations\GuardianTypo3\Domain\Configuration\ServiceRecord;
+use Vtinnovations\GuardianTypo3\Domain\Environment\CapabilityTier;
 use Vtinnovations\GuardianTypo3\Infrastructure\Backup\BackupStorage;
 use Vtinnovations\GuardianTypo3\Infrastructure\Packages\InstalledPackages;
+use Vtinnovations\GuardianTypo3\Infrastructure\Registry\EntryNotice;
 
 /**
  * The single backend entry point for Guardian.
@@ -44,14 +46,16 @@ final class GuardianModuleController
 {
     /**
      * JS config key => backend AJAX route identifier (registered in
-     * Configuration/Backend/AjaxRoutes.php). All read-only.
+     * Configuration/Backend/AjaxRoutes.php).
+     *
+     * Entitlement is deliberately absent from this map. Entering, updating and
+     * removing a licence key belongs to the shared V-T.ONE screen, which is the
+     * single place those endpoints are reached from; this module only reads the
+     * resulting state and links to that screen.
      *
      * @var array<string, string>
      */
     private const AJAX_ENDPOINTS = [
-        'licenseStatus' => 'guardian_license_status',
-        'licenseActivate' => 'guardian_license_activate',
-        'licenseClear' => 'guardian_license_clear',
         'packages' => 'guardian_packages',
         'backupOptions' => 'guardian_backup_options',
         'backupCreate' => 'guardian_backup_create',
@@ -124,11 +128,12 @@ final class GuardianModuleController
         private readonly PageRenderer $pageRenderer,
         private readonly UriBuilder $uriBuilder,
         private readonly BackendAuthorizationInterface $authorization,
-        private readonly LicenseManager $licenseManager,
+        private readonly EntitlementReader $entitlement,
         private readonly ProjectEnvironmentInterface $environment,
         private readonly InstalledPackages $installedPackages,
         private readonly BackupStorage $backupStorage,
         private readonly RuntimeConfigurationService $runtimeConfiguration,
+        private readonly EntryNotice $notice,
     ) {
     }
 
@@ -138,9 +143,20 @@ final class GuardianModuleController
         // in code as well so the guarantee does not depend on routing config.
         $this->authorization->assertAdministrator();
 
-        $tier = $this->licenseManager->currentStatus()->tier();
-        $isPro = $tier === LicenseTier::Pro;
-        $isLicensed = $tier !== LicenseTier::None;
+        $grant = $this->entitlement->grant();
+
+        // Entering the module in a signed-in session. The claim inside makes a
+        // reload, a second tab or an AJAX call later in the session silent, and
+        // delivery is deferred so nothing here waits on it.
+        $this->notice->arm($grant, ServiceRecord::PROJECT_SLUG);
+
+        // Two separate questions: manual backup needs any tier in effect, the
+        // rest of the product needs Pro. The view and the script are handed
+        // both, because the markup and the stylesheet lock different parts of
+        // the screen through them.
+        $tier = $grant->tier;
+        $isPro = $tier === CapabilityTier::Pro;
+        $isLicensed = $tier !== CapabilityTier::None;
 
         $this->pageRenderer->addCssFile('EXT:guardian_typo3/Resources/Public/Css/guardian.css');
         $this->pageRenderer->addJsFile('EXT:guardian_typo3/Resources/Public/JavaScript/guardian.js');
@@ -164,10 +180,25 @@ final class GuardianModuleController
             'projectDir' => $this->environment->projectPath(),
             'backupCount' => $backupCount,
             'recoveryPanelFilename' => $this->runtimeConfiguration->current()->recoveryPanelFilename,
+            'licensingUrl' => $this->licensingUrl(),
             'configJson' => $this->buildConfigJson($isPro, $isLicensed),
         ]);
 
         return $view->renderResponse('Guardian/Index');
+    }
+
+    /**
+     * Where the licence controls actually are. An empty string when the shared
+     * screen cannot be addressed, which the templates treat as "render no link"
+     * rather than a dead button.
+     */
+    private function licensingUrl(): string
+    {
+        try {
+            return (string) $this->uriBuilder->buildUriFromRoute('vtone_licensing');
+        } catch (RouteNotFoundException) {
+            return '';
+        }
     }
 
     private function buildConfigJson(bool $isPro, bool $isLicensed): string
@@ -194,6 +225,7 @@ final class GuardianModuleController
         $json = json_encode([
             'pro' => $isPro,
             'licensed' => $isLicensed,
+            'licensingUrl' => $this->licensingUrl(),
             'standaloneFilename' => $this->runtimeConfiguration->current()->recoveryPanelFilename,
             'endpoints' => $endpoints,
             'endpointErrors' => $endpointErrors,

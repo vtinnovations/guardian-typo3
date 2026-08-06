@@ -11,6 +11,7 @@ declare(strict_types=1);
  */
 
 use Vtinnovations\GuardianTypo3\Controller\Backend\GuardianModuleController;
+use Vtinnovations\GuardianTypo3\Controller\Backend\PackageOverviewController;
 
 /**
  * Backend module registration, compatible with TYPO3 13.4.9+ and TYPO3 14.
@@ -33,8 +34,27 @@ use Vtinnovations\GuardianTypo3\Controller\Backend\GuardianModuleController;
  * `after`/`before` sibling identifier: core system-module identifiers are not
  * guaranteed to be identical across TYPO3 13.4 and 14, so anchoring to one would
  * couple placement to a specific release.
+ *
+ * The second entry is the shared V-T.ONE licence screen. Its identifier is
+ * deliberately generic and identical in every V-T.ONE extension: TYPO3 merges
+ * module registrations by identifier, so several installed V-T.ONE products
+ * produce one entry that lists them all, rather than one competing entry each.
+ * Which products it lists comes from the registry, not from this file.
  */
 return [
+    'vtone_licensing' => [
+        'parent' => 'system',
+        'position' => ['bottom'],
+        'access' => 'admin',
+        'iconIdentifier' => 'guardian-module',
+        'path' => '/module/system/vtone-licensing',
+        'labels' => 'LLL:EXT:guardian_typo3/Resources/Private/Language/locallang_vtone.xlf',
+        'routes' => [
+            '_default' => [
+                'target' => PackageOverviewController::class . '::handleRequest',
+            ],
+        ],
+    ],
     'guardian' => [
         'parent' => 'system',
         'position' => ['bottom'],

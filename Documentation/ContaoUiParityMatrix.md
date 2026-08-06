@@ -56,7 +56,7 @@ success (per the functionality-status rules).
 | Restore explanation | 1208–1223 | `.updater-card` | — | Recovery | — | Pro | 🖥️ |
 | Standalone panel info | 1225–1251 | `.updater-card`, `.updater-recovery-url` | `updaterSetStandaloneUrl` | Recovery | panelGet | Pro | 🖥️/🔒 |
 | Access-token area | 1253–1279 | `.updater-token-display`, `.updater-token-source-badge` | `updaterLoadPanelConfig`, `updaterRotatePanelToken` | Recovery | panelGet | Pro | ✅ source / 🔒 rotate |
-| Pro-license settings | 1096–1124 | `.updater-recovery-row` | status, activate, clear | `Partials/Guardian/Settings` | license status/activate/clear | admin | ✅ |
+| Pro-license settings | 1096–1124 | `.updater-card`, `.vtone-package` | status, activate, update, remove | `Templates/Packages/Index` + `Partials/Packages/State` | license status/activate/refresh/clear | admin | ✅ relocated to System → VTOne Licensing |
 | Recovery-email settings | 1126–1152 | `.updater-recovery-row` | `updaterSaveRecoveryEmail`, `updaterSendTestRecoveryEmail` | Settings | runtimeGet | — | ✅ read / 🔒 write |
 | PHP-CLI settings | 1154–1176 | `.updater-sched-row` | `updaterTestPhpBinary`, `updaterSaveRuntime` | Settings | runtimeGet | — | ✅ read / 🔒 write |
 

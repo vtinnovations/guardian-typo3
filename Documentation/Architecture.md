@@ -8,7 +8,7 @@ design rule, learned from auditing the Contao original, is:
 > environment-specific is reached through an interface (a *port*) implemented by
 > a thin *adapter*.
 
-This keeps the valuable, hard-won business rules (schedule math, license grace
+This keeps the valuable, hard-won business rules (schedule math, entitlement
 windows, archive-safety, job lifecycle) pure and unit-testable, and confines the
 risky, framework- and OS-specific parts to small, individually reviewable seams.
 
@@ -51,7 +51,7 @@ Names refine the ones requested in the brief; the mapping is:
 
 Supporting ports added for a clean Phase 1: `WorkingDirectoryProviderInterface`,
 `LockInterface` / `LockFactoryInterface`, `RuntimeConfigurationRepositoryInterface`,
-`LicenseStateRepositoryInterface`, `ScheduleRepositoryInterface`.
+`ServiceRecordStoreInterface`, `ScheduleRepositoryInterface`.
 
 Interfaces with no Phase-1 adapter are intentional: the seam is fixed now so the
 later destructive pipelines depend on the abstraction, but no destructive
@@ -66,7 +66,8 @@ they carry state, immutable:
 - **Configuration**: `RuntimeConfiguration` (validated, immutable).
 - **Schedule**: `ScheduleFrequency`, `BackupSchedule`, `ScheduleRun`, and the pure
   `ScheduleEvaluator` (ported near-verbatim from Contao; time passed in).
-- **License**: `LicenseTier`, `LicenseState` (grace-window logic).
+- **Entitlement**: `Environment\CapabilityTier`, `Environment\HostIdentity` (exact-host
+  binding), `Configuration\ServiceRecord` (the signed record and its date rules).
 - **Job**: `JobStatus`/`JobType`/`UpdateMode` enums and the immutable `Job` with a
   guarded state machine (`JobStatus::canTransitionTo`).
 - **Process**: `CommandRequest` (argv-only, shell-impossible) and `CommandResult`.
@@ -79,7 +80,9 @@ they carry state, immutable:
 
 - `Configuration\RuntimeConfigurationService` — read config.
 - `Environment\EnvironmentInspector` — build `EnvironmentCapabilities` (no exec).
-- `License\LicenseManager` and `LicenseGuard` — activation, refresh and the single Pro/Free gate.
+- `Configuration\ActivationService` and `Configuration\RecordIntake` — the three
+  entitlement exchanges; `Environment\EntitlementReader` and
+  `Environment\CapabilityAssertion` — evaluation and the per-feature gate.
 - `Schedule\ScheduleForecastService` + `ScheduleForecast` — read-only "due/next".
 - `Dashboard\DashboardService` — aggregate read model for the module.
 
@@ -92,26 +95,31 @@ section. The 176 KB monolithic Contao Twig template is replaced by:
 
 ```
 Resources/Private/
-├── Layouts/Module.html            chrome + asset includes + nav
-├── Partials/Navigation.html       server-rendered section links
-├── Partials/PhaseBanner.html      "read-only phase" notice
-├── Partials/Card.html             reusable definition-list card
-└── Templates/Backend/
-    ├── Dashboard.html   Placeholder.html   Schedule.html
-    ├── Settings.html    License.html
+├── Templates/Guardian/Index.html   the product module: shell + tab panels
+├── Templates/Packages/Index.html   the shared V-T.ONE licence screen (host)
+├── Partials/Guardian/              Dashboard, Update, Backup, Recovery,
+│                                   Extensions, Settings, Tabs
+└── Partials/Packages/State.html    one product's entitlement, server-rendered
 Resources/Public/
-├── Css/guardian.css               theme-aware, scoped
-└── JavaScript/guardian.js         external classic script (progressive enhancement)
+├── Css/guardian.css                theme-aware, scoped
+├── JavaScript/guardian.js          the product module's script
+└── JavaScript/vtone-packages.js    the licence screen's script
 ```
 
-No inline JavaScript. Navigation is real links, so the module works without JS.
+No inline JavaScript. Entitlement state is rendered by the server in both places,
+so neither screen depends on a request completing to show what is stored.
+
+Licence controls exist **only** on the shared screen (`vtone_licensing`, under
+*System*). The product module has no licence panel, no licence endpoints in its
+endpoint map and no licence code in its script; its Settings tab links to the
+shared screen. See `LicensingImplementation.md`.
 
 ## What stays conceptually similar vs. what is redesigned
 
 **Conceptually similar (ported/adapted):**
 - `ScheduleEvaluator` — logic essentially unchanged.
 - `BackupLock` → `FlockLock` — same flock + stale-reclaim behaviour.
-- License interpretation, runtime-config validation, job lifecycle, archive
+- Entitlement interpretation, runtime-config validation, job lifecycle, archive
   safety, path containment, secret redaction — rules preserved, repackaged.
 
 **Fully redesigned:**

@@ -17,6 +17,7 @@ use Vtinnovations\GuardianTypo3\Application\Backup\ComponentSelection;
 use Vtinnovations\GuardianTypo3\Application\Contract\MaintenanceModeInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\ProjectEnvironmentInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\SystemLoggerInterface;
+use Vtinnovations\GuardianTypo3\Application\Environment\CapabilityAssertion;
 use Vtinnovations\GuardianTypo3\Application\Recovery\RestoreService;
 use Vtinnovations\GuardianTypo3\Domain\Backup\BackupComponent;
 use Vtinnovations\GuardianTypo3\Domain\Backup\BackupType;
@@ -78,11 +79,17 @@ final class UpdateJobRunner
         private readonly \Vtinnovations\GuardianTypo3\Application\Extension\ManagedPackageRemover $managedPackageRemover,
         private readonly \Vtinnovations\GuardianTypo3\Infrastructure\Update\AnalysisWorkspace $analysisWorkspace,
         private readonly ComposerConflictAnalyzer $conflictAnalyzer,
+        private readonly CapabilityAssertion $capability,
     ) {
     }
 
     public function run(Job $job): void
     {
+        // The worker runs detached from the request that queued the job, so it
+        // re-asserts the entitlement itself instead of trusting that queueing
+        // was authorised.
+        $this->capability->requirePro('Running an update job');
+
         $firstStep = $job->steps[0] ?? self::STEP_VERIFY;
         $job = $job->start($firstStep, $this->clock->now());
         $this->store->save($job);

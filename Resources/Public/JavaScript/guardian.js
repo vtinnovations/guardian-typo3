@@ -33,6 +33,8 @@
     var DEFAULT_TAB = 'dashboard';
     var VALID_TABS = ['dashboard', 'update', 'backup', 'recovery', 'extensions', 'settings'];
     var PRO_TABS = ['update', 'recovery', 'extensions'];
+    // Manual backup is what the Free package unlocks, so its tab asks only for
+    // a licence in effect rather than for Pro.
     var LICENSED_TABS = ['backup'];
 
     function t(key) {
@@ -57,9 +59,8 @@
     function root() { return document.getElementById('guardianModule'); }
     function byId(id) { return document.getElementById(id); }
 
-    // The endpoint URLs + license flags live in a Fluid JSON island. Parse it
-    // lazily and exactly once, so every handler — including the document-level
-    // license handlers registered before boot() — has the endpoints available
+    // The endpoint URLs + entitlement flags live in a Fluid JSON island. Parse it
+    // lazily and exactly once, so every handler has the endpoints available
     // regardless of boot()/DOMContentLoaded/tab/render/asset timing.
     var configLoaded = false;
     function ensureConfig() {
@@ -82,13 +83,12 @@
 
     /* ── Diagnostics (safe, non-sensitive) ───────────────────────────
      * Exposed as window.GuardianDiagnostics so the request path can be
-     * inspected in the console. It shows the LOCAL TYPO3 AJAX request only —
-     * the external license-service call happens server-side and never appears
-     * here (or in the browser Network panel). CSRF tokens in URLs are redacted
-     * and the license-service credential is never present client-side. */
+     * inspected in the console. It shows which LOCAL TYPO3 AJAX endpoints this
+     * module resolved, with CSRF tokens redacted; nothing about entitlement,
+     * and no vendor request, is recorded here. */
     function ensureDiagnostics() {
         if (!window.GuardianDiagnostics) {
-            window.GuardianDiagnostics = { lastLicenseRequest: null, endpoints: null, endpointErrors: null };
+            window.GuardianDiagnostics = { endpoints: null, endpointErrors: null };
         }
         return window.GuardianDiagnostics;
     }
@@ -101,75 +101,6 @@
         var out = {};
         if (map) { Object.keys(map).forEach(function (k) { out[k] = redactToken(map[k]); }); }
         return out;
-    }
-
-    function setLicenseDiagnostics(patch) {
-        var diag = ensureDiagnostics();
-        diag.lastLicenseRequest = Object.assign(diag.lastLicenseRequest || {}, patch);
-        return diag.lastLicenseRequest;
-    }
-
-    // A fetch wrapper for the license endpoints that records the full local
-    // request path into window.GuardianDiagnostics: URL (token-redacted), method,
-    // whether it started, the local HTTP status, a machine-readable error code,
-    // and a non-sensitive error message. Resolves with the parsed body on
-    // success; rejects with an Error carrying .code / .httpStatus otherwise.
-    function licenseFetch(label, url, body) {
-        setLicenseDiagnostics({
-            label: label,
-            url: redactToken(url),
-            method: 'POST',
-            started: true,
-            httpStatus: null,
-            errorCode: null,
-            errorMessage: null,
-            at: new Date().toISOString()
-        });
-        var httpStatus = null;
-        return fetch(url, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: body ? JSON.stringify(body) : '{}'
-        }).then(function (r) {
-            httpStatus = r.status;
-            setLicenseDiagnostics({ httpStatus: httpStatus });
-            return r.text().then(function (txt) {
-                try { return txt ? JSON.parse(txt) : {}; }
-                catch (e) { return { success: false, code: 'invalid_json', error: t('js.license.checkFailed') }; }
-            });
-        }).then(function (data) {
-            if (!data || data.success !== true) {
-                var code = (data && data.code) || (httpStatus && httpStatus >= 400 ? ('http_' + httpStatus) : 'unknown');
-                var msg = (data && data.error) || t('js.license.checkFailed');
-                setLicenseDiagnostics({ errorCode: code, errorMessage: msg });
-                var err = new Error(msg); err.code = code; err.httpStatus = httpStatus; throw err;
-            }
-            setLicenseDiagnostics({ errorCode: null, errorMessage: null });
-            return data;
-        }).catch(function (err) {
-            if (err && err.code) { throw err; } // already recorded above
-            // Transport-level failure: no response reached us at all.
-            setLicenseDiagnostics({ httpStatus: httpStatus, errorCode: 'network_error', errorMessage: (err && err.message) || String(err) });
-            var e2 = new Error((err && err.message) || String(err)); e2.code = 'network_error'; throw e2;
-        });
-    }
-
-    function diagnoseMissingEndpoint(label, configKey) {
-        var reason = (CFG.endpointErrors && CFG.endpointErrors[configKey]) || 'endpoint_missing';
-        setLicenseDiagnostics({
-            label: label,
-            url: null,
-            method: 'POST',
-            started: false,
-            httpStatus: null,
-            errorCode: reason,
-            errorMessage: t('js.license.endpointMissing'),
-            at: new Date().toISOString()
-        });
     }
 
     function postJson(url, body) {
@@ -1523,336 +1454,6 @@
         setTimeout(function () { window.location.href = GUARDIANX.redirect || '/typo3/'; }, 1400);
     }
 
-    /* ── License (single authoritative renderer) ─────────────────── */
-    //
-    // Three concepts are kept STRICTLY separate and are never conflated:
-    //   1. cached license state   -> licenseData          (#proLicenseState area)
-    //   2. entered input text     -> licenseUi.inputHasKey
-    //   3. request/activity state -> licenseUi.statusLoading / activationRunning / removalRunning
-    //
-    // Exactly one function (renderLicense) writes to #proLicenseState and
-    // #proLicenseStatus. No other code touches those elements directly.
-
-    var licenseData = null; // last cached license payload from the server
-
-    var licenseUi = {
-        statusLoading: false,
-        activationRunning: false,
-        removalRunning: false,
-        inputHasKey: false,
-        hasStoredKey: false,
-        licensed: false,
-        canUpdate: false,
-        valid: null,            // null = no activation result yet; true/false after one
-        serverError: false,
-        lastMessageType: 'idle',
-        lastMessage: ''
-    };
-
-    // Detailed cached-state markup for #proLicenseState (no transient messaging).
-    function licenseStateHtml(data) {
-        if (!data || !data.has_key) {
-            return '<span style="color:var(--updater-text-muted);">' + esc(t('js.license.none')) + '</span>';
-        }
-        var badge;
-        if (data.status === 'pro') { badge = '⭐ ' + t('js.license.pro'); }
-        else if (data.status === 'free') { badge = '🆓 ' + t('js.license.free'); }
-        else if (data.status === 'free_fallback') { badge = '🆓 ' + t('js.license.free') + ' (' + t('js.license.expired') + ')'; }
-        else if (data.status === 'expired') { badge = '⌛ ' + t('js.license.expired'); }
-        else if (data.status === 'unreachable') { badge = '⚠ ' + t('js.license.unreachable'); }
-        else { badge = '✗ ' + t('js.license.invalid'); }
-        var badgeStyle = data.licensed
-            ? 'background:var(--updater-result-ok-bg);color:var(--updater-result-ok-fg);'
-            : 'background:var(--updater-result-err-bg);color:var(--updater-result-err-fg);';
-        var parts = [];
-        if (data.key_preview) { parts.push('<div><strong>' + esc(t('js.license.key')) + ':</strong> <code>' + esc(data.key_preview) + '</code></div>'); }
-        if (data.domain) { parts.push('<div><strong>' + esc(t('js.domain')) + ':</strong> <code>' + esc(data.domain) + '</code></div>'); }
-        if (data.package) { parts.push('<div><strong>' + esc(t('js.package')) + ':</strong> <code>' + esc(data.package) + '</code></div>'); }
-        // Start / issue date (whichever the server provided).
-        var startTs = data.starts_at || data.issued_at;
-        if (startTs) { parts.push('<div><strong>' + esc(t('js.license.starts')) + ':</strong> ' + esc(fmtLicenseDate(startTs)) + '</div>'); }
-        // Expiry, or an explicit "Lifetime" label when there is no end date.
-        if (data.lifetime) {
-            parts.push('<div><strong>' + esc(t('js.license.expires')) + ':</strong> ' + esc(t('js.license.lifetime')) + '</div>');
-        } else if (data.expires_at) {
-            parts.push('<div><strong>' + esc(t('js.license.expires')) + ':</strong> ' + esc(fmtLicenseDate(data.expires_at)) + '</div>');
-        }
-        if (data.verified_at) { parts.push('<div><strong>' + esc(t('js.license.verified')) + ':</strong> ' + esc(fmtLicenseDate(data.verified_at)) + '</div>'); }
-        if (Array.isArray(data.features) && data.features.length) {
-            parts.push('<div><strong>' + esc(t('js.license.features')) + ':</strong> <code>' + esc(data.features.join(', ')) + '</code></div>');
-        }
-        if (data.cache_stale) { parts.push('<div>⚠ ' + esc(t('js.license.stale')) + '</div>'); }
-        return '<div style="' + badgeStyle + 'display:inline-block;padding:.15rem .5rem;border-radius:3px;font-weight:600;margin-bottom:.4rem;">' + esc(badge) + '</div>' + parts.join('');
-    }
-
-    // Format a Unix timestamp (seconds) as a local date; never throws.
-    function fmtLicenseDate(ts) {
-        var n = parseInt(ts, 10);
-        if (!n || n <= 0) { return '—'; }
-        try {
-            var d = new Date(n * 1000);
-            if (isNaN(d.getTime())) { return '—'; }
-            var y = d.getFullYear();
-            var m = ('0' + (d.getMonth() + 1)).slice(-2);
-            var day = ('0' + d.getDate()).slice(-2);
-            return y + '-' + m + '-' + day;
-        } catch (e) { return '—'; }
-    }
-
-    // The transient message (#proLicenseStatus), computed with strict precedence.
-    // "Please enter a license key" is produced ONLY here, and ONLY when there is
-    // no stored key, the input is empty, nothing is running, and no result is
-    // being shown. It can therefore never replace a checking / result / error /
-    // stored-license state.
-    function licenseTransient() {
-        if (licenseUi.activationRunning) { return {type: 'checking', text: t('js.license.checking')}; }
-        if (licenseUi.removalRunning) { return {type: 'removing', text: t('js.license.removing')}; }
-        if (licenseUi.statusLoading) { return {type: 'loading', text: ''}; }
-        if (licenseUi.serverError) { return {type: 'error', text: licenseUi.lastMessage || t('js.license.statusUnavailable')}; }
-        if (licenseUi.valid === true) { return {type: 'ok', text: licenseUi.lastMessage || t('js.license.activated')}; }
-        if (licenseUi.valid === false) { return {type: 'error', text: licenseUi.lastMessage || t('js.license.invalidResult')}; }
-        if (!licenseUi.hasStoredKey && !licenseUi.inputHasKey) { return {type: 'enter-key', text: t('js.license.enterKey')}; }
-        return {type: 'idle', text: ''};
-    }
-
-    function renderLicense() {
-        var stateEl = byId('proLicenseState');
-        if (stateEl) {
-            if (licenseUi.statusLoading && !licenseData) {
-                stateEl.innerHTML = '<span style="color:var(--updater-text-muted);">' + esc(t('js.license.loadingState')) + '</span>';
-            } else {
-                stateEl.innerHTML = licenseStateHtml(licenseData);
-            }
-        }
-        var removeBtn = byId('proLicenseRemoveButton');
-        if (removeBtn && !removeBtn.dataset.guardianLicenseBusy) {
-            removeBtn.disabled = !licenseUi.hasStoredKey || licenseUi.activationRunning || licenseUi.removalRunning;
-        }
-        // Server-driven label: a stored license (has_key from the license status
-        // endpoint) turns the activation button into "Update License".
-        var activateBtn = byId('proLicenseActivateButton');
-        if (activateBtn && !activateBtn.dataset.guardianLicenseBusy) {
-            activateBtn.textContent = licenseUi.hasStoredKey ? t('js.license.update') : t('js.license.activate');
-        }
-        var statusEl = byId('proLicenseStatus');
-        if (statusEl) {
-            var msg = licenseTransient();
-            licenseUi.lastMessageType = msg.type;
-            statusEl.style.color = msg.type === 'error'
-                ? 'var(--updater-result-err-fg)'
-                : (msg.type === 'ok' ? 'var(--updater-result-ok-fg)' : 'var(--updater-text-muted)');
-            statusEl.textContent = msg.text;
-        }
-    }
-
-    // Adopt a fresh cached-state payload (from status/activate/clear). Updates
-    // only the cached-state + gating flags; never touches request/activity flags.
-    function applyLicenseData(data) {
-        licenseData = data;
-        licenseUi.hasStoredKey = !!(data && data.has_key);
-        licenseUi.licensed = !!(data && data.licensed);
-        licenseUi.canUpdate = data && typeof data.canUpdate === 'boolean' ? data.canUpdate : licenseUi.licensed;
-        licenseUi.serverError = false;
-        CFG.pro = !!(data && data.pro);
-        CFG.licensed = !!(data && data.licensed);
-        syncLicenseActivateButtonState();
-    }
-
-    function loadLicenseStatus() {
-        var url = endpoint('licenseStatus');
-        if (!url) { diagnoseMissingEndpoint('status', 'licenseStatus'); return; }
-        // A status refresh is NOT an activation result — clear any prior result
-        // so the transient area never shows a stale activation outcome as current.
-        licenseUi.statusLoading = true;
-        licenseUi.valid = null;
-        licenseUi.serverError = false;
-        renderLicense();
-        licenseFetch('status', url).then(function (data) {
-            applyLicenseData(data);
-        }).catch(function () {
-            licenseUi.serverError = true;
-            licenseUi.lastMessage = t('js.license.statusUnavailable');
-        }).finally(function () {
-            licenseUi.statusLoading = false;
-            applyLicenseGating();
-            renderLicense();
-        });
-    }
-
-    // Reads only the INPUT text: updates inputHasKey + the activate button.
-    // Never touches cached state or request state.
-    function syncLicenseActivateButtonState() {
-        var input = byId('proLicenseInput');
-        var button = byId('proLicenseActivateButton');
-        licenseUi.inputHasKey = !!(input && input.value.trim() !== '');
-        if (input && button && !button.dataset.guardianLicenseBusy) {
-            // Enabled when a key is entered OR a license is already active (an
-            // update reuses the stored key server-side — no re-typing required).
-            button.disabled = !(licenseUi.inputHasKey || licenseUi.canUpdate);
-        }
-    }
-
-    // Click + input wiring for the licence controls is registered ONCE at the
-    // document level (see registerLicenseControls() at the bottom), independent
-    // of boot(). This function only performs the initial state sync + status
-    // load when the module boots — it never attaches per-element listeners, so
-    // there is no double binding and nothing depends on boot() running for the
-    // buttons to work.
-    function initializeGuardianLicensing() {
-        // Status loading is done deterministically in registerLicenseControls()
-        // (on DOM-ready, independent of boot); here we only re-sync the button
-        // and re-render through the single authoritative renderer.
-        syncLicenseActivateButtonState();
-        renderLicense();
-    }
-
-    // Document-level delegation, matched by the stable IDs. Works no matter when
-    // the markup appears (tab switching keeps it in the DOM), and does not depend
-    // on boot(), DOMContentLoaded, or asset timing.
-    function handleLicenseClick(event) {
-        var target = event.target && event.target.closest
-            ? event.target.closest('#proLicenseActivateButton, #proLicenseRemoveButton')
-            : null;
-        if (!target || target.disabled) { return; }
-        event.preventDefault();
-        if (target.id === 'proLicenseActivateButton') {
-            activateLicense();
-        } else {
-            clearLicense();
-        }
-    }
-
-    function handleLicenseInput(event) {
-        if (event.target && event.target.id === 'proLicenseInput') {
-            syncLicenseActivateButtonState();
-            // Re-render so a now-non-empty input immediately clears the
-            // "enter a license key" hint (without touching any other state).
-            renderLicense();
-        }
-    }
-
-    var licenseControlsRegistered = false;
-    function registerLicenseControls() {
-        if (licenseControlsRegistered) { return; }
-        licenseControlsRegistered = true;
-        // Registered on document so they survive tab switches and any render
-        // order. `input` + `focusin` keep the disabled activate button in sync
-        // (a disabled button never emits click, so enabling it deterministically
-        // is what makes the click reachable).
-        document.addEventListener('click', handleLicenseClick);
-        document.addEventListener('input', handleLicenseInput);
-        document.addEventListener('focusin', handleLicenseInput);
-        var onReady = function () {
-            syncLicenseActivateButtonState();
-            renderLicense();
-            // Populate the detailed state + enable the remove button (when a key
-            // exists) deterministically, even if boot() never runs.
-            loadLicenseStatus();
-        };
-        if (document.readyState !== 'loading') {
-            onReady();
-        } else {
-            document.addEventListener('DOMContentLoaded', onReady);
-        }
-    }
-
-    function setActivateBusy(busy) {
-        var button = byId('proLicenseActivateButton');
-        if (!button) { return; }
-        if (busy) {
-            button.disabled = true;
-            button.dataset.guardianLicenseBusy = '1';
-            button.textContent = t('js.license.checking');
-        } else {
-            delete button.dataset.guardianLicenseBusy;
-            button.textContent = licenseUi.hasStoredKey ? t('js.license.update') : t('js.license.activate');
-        }
-    }
-
-    function activateLicense() {
-        var input = byId('proLicenseInput');
-        var key = input ? input.value.trim() : '';
-        licenseUi.inputHasKey = key !== '';
-
-        // Empty input with NO active license is the only legitimate trigger for
-        // the "enter a license key" message. With an active license, an empty
-        // field means "update using the stored key" — the server reuses it; the
-        // full key is never sent from or to the browser.
-        if (!key && !licenseUi.hasStoredKey) {
-            licenseUi.activationRunning = false;
-            licenseUi.valid = null;
-            licenseUi.serverError = false;
-            renderLicense();
-            return;
-        }
-
-        // A missing endpoint is a REQUEST-state problem, NOT an empty-input one.
-        var url = endpoint('licenseActivate');
-        if (!url) {
-            diagnoseMissingEndpoint('activate', 'licenseActivate');
-            licenseUi.serverError = true;
-            licenseUi.lastMessage = t('js.license.endpointMissing');
-            renderLicense();
-            return;
-        }
-
-        licenseUi.activationRunning = true;
-        licenseUi.valid = null;
-        licenseUi.serverError = false;
-        licenseUi.lastMessage = '';
-        setActivateBusy(true);
-        renderLicense();
-
-        // ONE local TYPO3 backend AJAX request. TYPO3 PHP then calls the external
-        // license service server-side, so that external call is not visible here.
-        licenseFetch('activate', url, {key: key}).then(function (data) {
-            applyLicenseData(data);
-            licenseUi.valid = (typeof data.valid === 'boolean') ? data.valid : !!data.licensed;
-            licenseUi.lastMessage = data.message || '';
-            if (licenseUi.valid && input) { input.value = ''; licenseUi.inputHasKey = false; }
-        }).catch(function (error) {
-            licenseUi.serverError = true;
-            licenseUi.lastMessage = error.message || String(error);
-        }).finally(function () {
-            licenseUi.activationRunning = false;
-            setActivateBusy(false);
-            applyLicenseGating();
-            syncLicenseActivateButtonState();
-            renderLicense();
-        });
-    }
-
-    function clearLicense() {
-        var url = endpoint('licenseClear');
-        if (!url) {
-            diagnoseMissingEndpoint('clear', 'licenseClear');
-            licenseUi.serverError = true;
-            licenseUi.lastMessage = t('js.license.endpointMissing');
-            renderLicense();
-            return;
-        }
-        if (!window.confirm(t('js.license.removeConfirm'))) { return; }
-
-        var button = byId('proLicenseRemoveButton');
-        licenseUi.removalRunning = true;
-        licenseUi.valid = null;
-        licenseUi.serverError = false;
-        if (button) { button.disabled = true; button.dataset.guardianLicenseBusy = '1'; }
-        renderLicense();
-
-        licenseFetch('clear', url).then(function (data) {
-            applyLicenseData(data);
-        }).catch(function (error) {
-            licenseUi.serverError = true;
-            licenseUi.lastMessage = error.message || String(error);
-        }).finally(function () {
-            licenseUi.removalRunning = false;
-            if (button) { delete button.dataset.guardianLicenseBusy; }
-            applyLicenseGating();
-            renderLicense();
-        });
-    }
-
     /* ── Schedule (read-only populate) ───────────────────────────── */
 
     function toggleScheduleRows(prefix) {
@@ -2798,7 +2399,12 @@
 
     var ACTIONS = {
         tab: function (el) { switchTab(el.dataset.tab, true); },
-        'goto-settings': function () { switchTab('settings', true); },
+        // Entitlement is not managed here: the shared V-T.ONE screen owns that,
+        // and this only sends the administrator to it.
+        'goto-licensing': function () {
+            ensureConfig();
+            if (CFG.licensingUrl) { window.location.href = CFG.licensingUrl; }
+        },
         'upgrade-close': closeUpgradeModal,
         'update-open': function () { if (updateState.canRunLive) { openUpdateModal(); } },
         'update-close': closeUpdateModal,
@@ -2844,7 +2450,6 @@
         'schedule-run-mini': function () { runSchedule('mini'); },
         'schedule-run-full': function () { runSchedule('full'); },
         'backup-test-email': testEmail,
-        'license-reload': loadLicenseStatus,
         'panel-save-filename': savePanelFilename,
         'panel-enable': enablePanel,
         'panel-disable': disablePanel,
@@ -2868,8 +2473,6 @@
     }
 
     function onInput(e) {
-        // License input is handled by the dedicated handleLicenseInput() so all
-        // license state changes flow through the single authoritative renderer.
         var el = e.target.closest('[data-action]');
         if (el && el.dataset.action === 'packages-filter') { renderManage(); return; }
         if (e.target && (e.target.id === 'guardianRecoveryPhrase' || e.target.id === 'guardianVendorPhrase')) { updateRecoveryRun(); }
@@ -2917,7 +2520,6 @@
         });
 
         initTabs();
-        initializeGuardianLicensing();
         applyLicenseGating();
         loadSchedule();
         reloadBackupList();
@@ -2931,12 +2533,6 @@
         toggleScheduleRows('Mini');
         toggleScheduleRows('Full');
     }
-
-    // Register the licence controls immediately — BEFORE and independent of
-    // boot(). This is the deterministic path: even if boot() never runs (missing
-    // #guardianModule at that instant, asset/render race, etc.), typing a key
-    // enables the activate button and clicking it reaches fetch().
-    registerLicenseControls();
 
     if (document.readyState !== 'loading') {
         boot();

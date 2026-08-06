@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace Vtinnovations\GuardianTypo3\Application\Backup;
 
 use Vtinnovations\GuardianTypo3\Application\Contract\DatabaseDumperInterface;
+use Vtinnovations\GuardianTypo3\Application\Environment\CapabilityAssertion;
 use Vtinnovations\GuardianTypo3\Application\Contract\LockFactoryInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\ProjectEnvironmentInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\SystemLoggerInterface;
@@ -57,6 +58,7 @@ final class BackupService
         private readonly RetentionPolicy $retentionPolicy,
         private readonly SystemLoggerInterface $systemLogger,
         private readonly PathRepositoryInspector $pathRepositoryInspector,
+        private readonly CapabilityAssertion $capability,
     ) {
     }
 
@@ -65,6 +67,11 @@ final class BackupService
      */
     public function create(ComponentSelection $selection, BackupType $type, int $retention): BackupResult
     {
+        // Enforced here rather than only at the caller, so a console command, a
+        // scheduler task or another service cannot reach the archive writer
+        // without the same entitlement a backend request needs.
+        $this->capability->requireLicensed('Creating a backup');
+
         if (!ZipBackupArchiveWriter::isSupported()) {
             throw new GuardianException('Backups require the PHP "zip" extension (ZipArchive), which is not available.');
         }

@@ -10,7 +10,7 @@ declare(strict_types=1);
  * @copyright V&T Innovations 2026 - 2028
  */
 
-use Vtinnovations\GuardianTypo3\Command\LicenseDigestCommand;
+use Vtinnovations\GuardianTypo3\Command\ReleaseCheckCommand;
 use Vtinnovations\GuardianTypo3\Command\RunDueBackupsCommand;
 use Vtinnovations\GuardianTypo3\Command\RunUpdateJobCommand;
 
@@ -24,7 +24,7 @@ return [
     'guardian:update:run' => [
         'class' => RunUpdateJobCommand::class,
     ],
-    'guardian:license:digest' => [
-        'class' => LicenseDigestCommand::class,
+    'guardian:release:check' => [
+        'class' => ReleaseCheckCommand::class,
     ],
 ];

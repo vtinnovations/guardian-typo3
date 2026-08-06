@@ -31,7 +31,8 @@ use Vtinnovations\GuardianTypo3\Application\Contract\BackendAuthorizationInterfa
 use Vtinnovations\GuardianTypo3\Application\Contract\RecoveryHistoryStoreInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\ScheduleConfigStoreInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\SystemLoggerInterface;
-use Vtinnovations\GuardianTypo3\Application\License\LicenseManager;
+use Vtinnovations\GuardianTypo3\Application\Configuration\ActivationService;
+use Vtinnovations\GuardianTypo3\Application\Environment\EntitlementReader;
 use Vtinnovations\GuardianTypo3\Application\Recovery\BackupCatalog;
 use Vtinnovations\GuardianTypo3\Application\Recovery\RecoveryDryRun;
 use Vtinnovations\GuardianTypo3\Application\Recovery\RecoveryPreflight;
@@ -76,7 +77,8 @@ final class GuardianAjaxController
 {
     public function __construct(
         private readonly BackendAuthorizationInterface $authorization,
-        private readonly LicenseManager $licenseManager,
+        private readonly EntitlementReader $entitlement,
+        private readonly ActivationService $activation,
         private readonly InstalledPackages $installedPackages,
         private readonly RuntimeConfigurationService $runtimeConfiguration,
         private readonly RecoveryTokenReader $recoveryToken,
@@ -124,7 +126,7 @@ final class GuardianAjaxController
             return $deny;
         }
 
-        return new JsonResponse(['success' => true, 'code' => 'ok'] + $this->licenseManager->currentStatus()->toPublicArray());
+        return new JsonResponse(['success' => true, 'code' => 'ok'] + $this->entitlement->grant()->toPublicArray());
     }
 
     public function licenseActivate(ServerRequestInterface $request): ResponseInterface
@@ -138,13 +140,35 @@ final class GuardianAjaxController
             return new JsonResponse(['success' => false, 'code' => 'invalid_payload', 'error' => 'Invalid JSON payload.'], 400);
         }
 
+        // The host is never taken from the submitted payload: it is resolved
+        // from trusted request data inside the activation flow.
         try {
-            $status = $this->licenseManager->activate((string) ($payload['key'] ?? ''), strtolower($request->getUri()->getHost()));
+            $grant = $this->activation->activate((string) ($payload['key'] ?? ''));
         } catch (GuardianException $e) {
             return new JsonResponse(['success' => false, 'code' => 'activation_failed', 'error' => $e->getMessage()], 500);
         }
 
-        return new JsonResponse(['success' => true, 'code' => 'ok', 'valid' => $status->licensed] + $status->toPublicArray());
+        return new JsonResponse(['success' => true, 'code' => 'ok', 'valid' => $grant->isLicensed()] + $grant->toPublicArray());
+    }
+
+    /**
+     * Re-confirms the record already held, announcing the version in effect. No
+     * key is submitted: the stored one is used server-side, so the full key
+     * neither leaves nor re-enters the browser.
+     */
+    public function licenseRefresh(ServerRequestInterface $request): ResponseInterface
+    {
+        if (($deny = $this->guardPost($request)) !== null) {
+            return $deny;
+        }
+
+        try {
+            $grant = $this->activation->refresh();
+        } catch (GuardianException $e) {
+            return new JsonResponse(['success' => false, 'code' => 'refresh_failed', 'error' => $e->getMessage()], 500);
+        }
+
+        return new JsonResponse(['success' => true, 'code' => 'ok', 'valid' => $grant->isLicensed()] + $grant->toPublicArray());
     }
 
     public function licenseClear(ServerRequestInterface $request): ResponseInterface
@@ -154,12 +178,12 @@ final class GuardianAjaxController
         }
 
         try {
-            $status = $this->licenseManager->clear();
+            $grant = $this->activation->withdraw();
         } catch (GuardianException $e) {
             return new JsonResponse(['success' => false, 'code' => 'removal_failed', 'error' => $e->getMessage()], 500);
         }
 
-        return new JsonResponse(['success' => true, 'code' => 'ok'] + $status->toPublicArray());
+        return new JsonResponse(['success' => true, 'code' => 'ok'] + $grant->toPublicArray());
     }
 
     // ── Packages / analysis / misc reads ────────────────────────────────────
@@ -622,7 +646,7 @@ final class GuardianAjaxController
         }
 
         $model = $this->packageManager->list($updateMap, $updateError);
-        $pro = $this->licenseManager->currentStatus()->pro;
+        $pro = $this->entitlement->isPro();
 
         return new JsonResponse([
             'success' => true,
@@ -1333,14 +1357,14 @@ final class GuardianAjaxController
                 'database' => $component->isDatabase(),
             ];
         }
-        $status = $this->licenseManager->currentStatus();
+        $grant = $this->entitlement->grant();
 
         return new JsonResponse([
             'success' => true,
             'components' => $components,
             'zip_supported' => ZipBackupArchiveWriter::isSupported(),
-            'licensed' => $status->licensed,
-            'pro' => $status->pro,
+            'licensed' => $grant->isLicensed(),
+            'pro' => $grant->isPro(),
         ]);
     }
 
@@ -1933,9 +1957,14 @@ final class GuardianAjaxController
         return null;
     }
 
+    /**
+     * The lower requirement: any tier in effect, Free included. Manual backup is
+     * what this guards; everything that changes the installation asks for
+     * {@see requirePro()} instead.
+     */
     private function requireLicensed(): ?ResponseInterface
     {
-        if (!$this->licenseManager->currentStatus()->licensed) {
+        if (!$this->entitlement->isLicensed()) {
             return new JsonResponse([
                 'success' => false,
                 'code' => 'license_required',
@@ -1948,11 +1977,11 @@ final class GuardianAjaxController
 
     private function requirePro(): ?ResponseInterface
     {
-        if (!$this->licenseManager->currentStatus()->pro) {
+        if (!$this->entitlement->isPro()) {
             return new JsonResponse([
                 'success' => false,
                 'code' => 'pro_required',
-                'error' => 'Scheduled backups require a valid Pro license from v-t.one.',
+                'error' => 'This feature requires a valid Pro license from v-t.one.',
             ], 403);
         }
 

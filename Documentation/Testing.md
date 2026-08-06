@@ -18,7 +18,22 @@ Pure, deterministic logic — the highest-value, framework-free surface:
 | Runtime config validation | `Tests/Unit/Domain/Configuration/RuntimeConfigurationTest.php` |
 | Safe path normalisation & containment | `Tests/Unit/Domain/Filesystem/PathNormalizerTest.php` |
 | Schedule due/next-run math | `Tests/Unit/Domain/Schedule/ScheduleEvaluatorTest.php` |
-| License grace-window & tiers | `Tests/Unit/Domain/License/LicenseStateTest.php` |
+| Exact-host binding | `Tests/Unit/Domain/Environment/HostIdentityTest.php` |
+| Configured-host inventory & intersection | `Tests/Unit/Domain/Environment/HostInventoryTest.php` |
+| Session module-entry signal | `Tests/Unit/Integration/SessionEntrySignalTest.php` |
+| Shared licence screen & product registry | `Tests/Unit/Integration/PackageScreenWiringTest.php` |
+| One licence surface (legacy panel removed) | `Tests/Unit/Integration/SingleLicenceSurfaceTest.php` |
+| Record invariants & tiers | `Tests/Unit/Domain/Configuration/ServiceRecordTest.php` |
+| Canonical signing vectors | `Tests/Unit/Infrastructure/Manifest/CanonicalFormTest.php` |
+| Package verification | `Tests/Unit/Infrastructure/Manifest/SealedPackageTest.php` |
+| Pinned key ring & rotation | `Tests/Unit/Infrastructure/Version/ReleaseKeyringTest.php` |
+| Atomic storage & rollback | `Tests/Unit/Infrastructure/Configuration/SealedRecordStoreTest.php` |
+| Activation & Update Licence | `Tests/Unit/Application/Configuration/ActivationServiceTest.php` |
+| Vendor-initiated push | `Tests/Unit/Middleware/RestEndpointMiddlewareTest.php` |
+| Trusted-host resolution | `Tests/Unit/Typo3/Environment/InstallationIdentityTest.php` |
+| Packet-log secrecy | `Tests/Unit/Integration/PacketSecrecyTest.php` |
+| Source-layout concealment | `Tests/Unit/Integration/SourceLayoutTest.php` |
+| Release artefact | `Tests/Unit/Integration/ReleaseArtefactTest.php` |
 | Archive traversal (zip/tar-slip) | `Tests/Unit/Domain/Archive/ArchiveEntryValidatorTest.php` |
 | Shell-free command construction | `Tests/Unit/Domain/Process/CommandRequestTest.php` |
 | Job state transitions | `Tests/Unit/Domain/Job/JobTest.php` |
@@ -88,7 +103,15 @@ exercise against a booted TYPO3.
 
 ## Runtime checks still pending
 
-- Unit suite has not been executed here — run it per the commands above.
 - Backend-module smoke test on a real **TYPO3 13.4.9** and a real **14.x** install
-  (module visible to admins under *System*; all seven sections render; DI compiles;
+  (both modules visible to admins under *System*; all sections render; DI compiles;
   icon/labels/XLF resolve).
+- **Site Configuration** reading against a real installation: the inventory is
+  built from `SiteFinder` (site `base`, language `base`, `baseVariants`), which the
+  unit suite exercises through a double rather than through TYPO3.
+- **Backend session claim** against a real `be_sessions` row: the once-per-session
+  behaviour is exercised here through a double, so the TYPO3 session read/write
+  pair and the lock around it still want one live check with two parallel tabs.
+- **Live V-T.ONE interoperability**: `Tests/Unit/Support/ProductionVectors.php` is
+  still empty, so no vector produced by V-T.ONE has been replayed through this
+  client's verification path.

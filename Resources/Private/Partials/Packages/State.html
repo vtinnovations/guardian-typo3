@@ -1,0 +1,73 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<f:comment>
+    One product's current entitlement, rendered by the server.
+
+    This is what makes the screen correct on first paint and correct without any
+    script at all: there is no request to wait for and therefore no state that can
+    stay "loading". The screen's script writes the same shape into this element
+    after an action, so both paths say the same thing.
+
+    Everything shown here is already administrator-facing state — a masked key,
+    the authorised hosts, the dates and the tier. The activation key, the packet,
+    the digest and the signatures are not part of it.
+</f:comment>
+
+<f:if condition="{state.licensePresent}">
+    <f:then>
+        <div>
+            <strong>
+                <f:switch expression="{state.status}">
+                    <f:case value="pro">⭐ <f:translate key="js.license.pro" extensionName="GuardianTypo3"/></f:case>
+                    <f:case value="free">🆓 <f:translate key="js.license.free" extensionName="GuardianTypo3"/></f:case>
+                    <f:case value="free_fallback">🆓 <f:translate key="js.license.free" extensionName="GuardianTypo3"/> (<f:translate key="js.license.expired" extensionName="GuardianTypo3"/>)</f:case>
+                    <f:case value="expired">⌛ <f:translate key="js.license.expired" extensionName="GuardianTypo3"/></f:case>
+                    <f:case value="not_started">⌛ <f:translate key="js.license.notStarted" extensionName="GuardianTypo3"/></f:case>
+                    <f:case value="unreachable">⚠ <f:translate key="js.license.unreachable" extensionName="GuardianTypo3"/></f:case>
+                    <f:defaultCase>✗ <f:translate key="js.license.invalid" extensionName="GuardianTypo3"/></f:defaultCase>
+                </f:switch>
+            </strong>
+        </div>
+        <f:if condition="{state.key_preview}">
+            <div><strong><f:translate key="js.license.key" extensionName="GuardianTypo3"/>:</strong> <code>{state.key_preview}</code></div>
+        </f:if>
+        <f:if condition="{state.domains}">
+            <div><strong><f:translate key="js.license.domains" extensionName="GuardianTypo3"/>:</strong> <code><f:for each="{state.domains}" as="host" iteration="i">{host}<f:if condition="!{i.isLast}">, </f:if></f:for></code></div>
+        </f:if>
+        <f:if condition="{state.matched_domain}">
+            <div><strong><f:translate key="js.license.activeOn" extensionName="GuardianTypo3"/>:</strong> <code>{state.matched_domain}</code></div>
+        </f:if>
+        <f:if condition="{state.starts_at}">
+            <div><strong><f:translate key="js.license.starts" extensionName="GuardianTypo3"/>:</strong> <f:format.date format="d.m.Y">@{state.starts_at}</f:format.date></div>
+        </f:if>
+        <div>
+            <strong><f:translate key="js.license.expires" extensionName="GuardianTypo3"/>:</strong>
+            <f:if condition="{state.lifetime}">
+                <f:then><f:translate key="js.license.lifetime" extensionName="GuardianTypo3"/></f:then>
+                <f:else>
+                    <f:if condition="{state.expires_at}">
+                        <f:then><f:format.date format="d.m.Y">@{state.expires_at}</f:format.date></f:then>
+                        <f:else>—</f:else>
+                    </f:if>
+                </f:else>
+            </f:if>
+        </div>
+        <f:if condition="{state.verified_at}">
+            <div><strong><f:translate key="js.license.verified" extensionName="GuardianTypo3"/>:</strong> <f:format.date format="d.m.Y H:i">@{state.verified_at}</f:format.date></div>
+        </f:if>
+        <f:if condition="{state.features}">
+            <div><strong><f:translate key="js.license.features" extensionName="GuardianTypo3"/>:</strong> <code><f:for each="{state.features}" as="feature" iteration="i">{feature}<f:if condition="!{i.isLast}">, </f:if></f:for></code></div>
+        </f:if>
+        <f:if condition="{state.cache_stale}">
+            <div>⚠ <f:translate key="js.license.stale" extensionName="GuardianTypo3"/></div>
+        </f:if>
+        <f:if condition="{state.message}">
+            <div>{state.message}</div>
+        </f:if>
+    </f:then>
+    <f:else>
+        <span style="color:var(--updater-text-muted);"><f:translate key="js.license.none" extensionName="GuardianTypo3"/></span>
+    </f:else>
+</f:if>
+
+</html>

@@ -40,9 +40,10 @@ Columns:
 | Runtime config (read) | `RuntimeConfig` | `RuntimeConfiguration` VO + JSON repo + read-only Settings view | n/a | N | 1 | ✅ |
 | Runtime config (write) | `RuntimeConfigController::save` | guarded write route (admin + CSRF) | n/a | N | 2 | ⏳ |
 | PHP CLI binary detect/test | `RuntimeConfig::testBinary` (exec) | command-executor probe | n/a | N | 6/8 | ⏳ |
-| License read/interpret | `LicenseManager` | `LicenseState` VO + `LicenseManager` | n/a | N | 1 | ✅ |
-| License activate/verify | `LicenseVerifier` (HTTP) | verifier port + TYPO3 HTTP adapter | admin + CSRF | Y | 2 | ✅ |
-| Free/Pro feature gates | `LicenseGuard` | `LicenseGuard` server-side gate | n/a | N | 2 | ✅ |
+| Entitlement read/interpret | `LicenseManager` | `ServiceRecord` VO + `EntitlementReader` | n/a | N | 1 | ✅ |
+| Activate / Update Licence | `LicenseVerifier` (HTTP) | `RecordExchangeInterface` port + TYPO3 HTTP adapter | admin + CSRF | Y | 2 | ✅ |
+| Free/Pro feature gates | `LicenseGuard` | `CapabilityAssertion` at each feature boundary | n/a | N | 2 | ✅ |
+| Vendor-initiated record push | n/a | `RestEndpointMiddleware` + `RecordIntake` | signed request | Y | 2 | ✅ |
 | Installed/outdated packages | `PackageInspector` (Packagist) | package inspector behind HTTP port | Free | N | 6 | ⏳ |
 | Update analysis / pre-checks | `PreUpdateChecker`, `AnalysisController` | analysis service (read + executor) | Pro | N | 6 | ⏳ |
 | Composer update (full/patch/selective) | `ComposerUpdateStep` | update pipeline via `CommandExecutorInterface` | Pro | D | 8 | ⏳ |
@@ -76,5 +77,5 @@ Columns:
 - The standalone recovery panel — treated as a separate later security-critical
   deliverable; the Contao file is **not** copied into this project.
 - Major-version upgrade mode — already disabled in the Contao product.
-- License activation and any outbound HTTP.
+- Entitlement exchanges and any outbound HTTP.
 - Any write endpoint / form submission in the backend UI.

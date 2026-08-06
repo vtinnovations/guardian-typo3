@@ -16,7 +16,7 @@ use Vtinnovations\GuardianTypo3\Application\Contract\DatabaseImporterInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\ProjectEnvironmentInterface;
 use Vtinnovations\GuardianTypo3\Application\Contract\WorkingDirectoryProviderInterface;
 use Vtinnovations\GuardianTypo3\Application\Environment\EnvironmentInspector;
-use Vtinnovations\GuardianTypo3\Application\License\LicenseManager;
+use Vtinnovations\GuardianTypo3\Application\Environment\EntitlementReader;
 use Vtinnovations\GuardianTypo3\Infrastructure\Update\ComposerEnvironment;
 use Vtinnovations\GuardianTypo3\Infrastructure\Update\UpdateJobStore;
 
@@ -42,7 +42,7 @@ final class PreUpdateAnalysis
         private readonly WorkingDirectoryProviderInterface $workingDirectory,
         private readonly ComposerEnvironment $composerEnvironment,
         private readonly DatabaseImporterInterface $databaseImporter,
-        private readonly LicenseManager $licenseManager,
+        private readonly EntitlementReader $entitlement,
         private readonly UpdateJobStore $jobStore,
     ) {
     }
@@ -95,7 +95,7 @@ final class PreUpdateAnalysis
             ? $this->check('analysis.database', 'ok', 'analysis.database.ok')
             : $this->check('analysis.database', 'error', 'analysis.database.error');
 
-        $checks['license'] = $this->licenseManager->currentStatus()->pro
+        $checks['license'] = $this->entitlement->isPro()
             ? $this->check('analysis.license', 'ok', 'analysis.license.ok')
             : $this->check('analysis.license', 'error', 'analysis.license.error');
 

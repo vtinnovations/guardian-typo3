@@ -85,11 +85,14 @@ internal mechanics are deliberately not described here.
   validation fails, only the restricted (licensed) Guardian functions are
   disabled; the administrator retains access to status and licence-management
   views so the situation can be corrected.
-- **Free and Pro entitlements.** Both tiers are enforced server-side. Free-tier
-  and Pro-tier capabilities are distinguished by the server on every request.
-- **Authorised fallback.** An expired Pro licence may fall back to Free-tier
-  capabilities only when the licence itself explicitly authorises that fallback;
-  otherwise expiry removes access to restricted functions.
+- **Free and Pro entitlements.** Both tiers require an activated, signed record
+  and are enforced server-side on every request. The accepted package vocabulary
+  is closed (`free`, `pro`); any other value is refused outright rather than
+  treated as a lesser tier.
+- **Authorised fallback.** An expired Pro licence keeps the Free feature set only
+  when that same signed record carries `free_available`; otherwise expiry removes
+  access to every restricted function. An expired Free licence has no tier
+  beneath it and always ends. No Free state is ever synthesised locally.
 - **No secret exposure.** Licence keys and any authentication secrets are never
   sent to the browser, embedded in client-side state, or written to logs.
 

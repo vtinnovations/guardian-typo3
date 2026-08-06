@@ -1,0 +1,83 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<f:comment>
+    The shared V-T.ONE licence screen: one section per installed V-T.ONE product,
+    rendered from the registry. Nothing here is Guardian-specific — a second
+    product's section is produced by the same markup from its own state.
+
+    Each section carries all three administrator actions: activate an entered key,
+    update the record already held, and remove it. The state below every heading
+    is server-rendered, so the screen never sits in a loading state waiting for a
+    request that might not arrive; the script only replaces it after an action.
+</f:comment>
+
+<div id="vtonePackages" class="guardian-module">
+
+    <script type="application/json" id="vtone-packages-config">{configJson -> f:format.raw()}</script>
+
+    <h1 class="guardian-product-heading"><span>{headline}</span></h1>
+
+    <f:if condition="{sections}">
+        <f:then>
+            <p style="color:var(--updater-text-muted);font-size:.88rem;margin:.3rem 0 1.1rem;line-height:1.5;">
+                <f:translate key="packages.intro" extensionName="GuardianTypo3"/>
+                🔗 <f:translate key="settings.license.obtain" extensionName="GuardianTypo3"/>
+                <a href="https://www.v-t.one" target="_blank" rel="noopener" style="color:var(--updater-text-link);font-weight:600;">v-t.one</a>.
+            </p>
+
+            <f:for each="{sections}" as="section">
+                <section class="updater-card vtone-package" data-package="{section.slug}">
+                    <h3>🔑 {section.title}</h3>
+
+                    <f:comment>
+                        A section offers controls only when its product supplied all
+                        four operations. Anything less renders the sentence below and
+                        no button at all — a control that cannot reach an endpoint is
+                        worse than an absent one, because pressing it looks like it
+                        worked.
+                    </f:comment>
+                    <f:if condition="{section.complete}">
+                        <f:then>
+                            <div class="vtone-package-state" data-role="state">
+                                <f:render partial="Packages/State" arguments="{state: section.state}"/>
+                            </div>
+
+                            <div class="vtone-package-form" style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin:.8rem 0;">
+                                <label for="vtone-key-{section.slug}" style="min-width:120px;">
+                                    <f:translate key="settings.license.key" extensionName="GuardianTypo3"/>
+                                </label>
+                                <input type="text" id="vtone-key-{section.slug}" data-role="key"
+                                       placeholder="{f:translate(key: 'settings.license.placeholder', extensionName: 'GuardianTypo3')}"
+                                       style="flex:1;font-family:monospace;" maxlength="190"
+                                       autocomplete="off" spellcheck="false">
+                            </div>
+                            <div>
+                                <button type="button" class="updater-btn" data-role="activate">
+                                    <f:translate key="settings.license.activate" extensionName="GuardianTypo3"/>
+                                </button>
+                                <button type="button" class="updater-btn updater-btn-secondary" data-role="refresh">
+                                    <f:translate key="settings.license.update" extensionName="GuardianTypo3"/>
+                                </button>
+                                <button type="button" class="updater-btn updater-btn-secondary" data-role="clear">
+                                    <f:translate key="settings.license.remove" extensionName="GuardianTypo3"/>
+                                </button>
+                                <span role="status" aria-live="polite" data-role="message" style="margin-left:.7rem;font-size:.85rem;"></span>
+                            </div>
+                        </f:then>
+                        <f:else>
+                            <p role="status" data-role="unavailable" style="color:var(--updater-text-muted);font-size:.88rem;margin:.4rem 0;">
+                                ⚠ <f:translate key="packages.unavailable" extensionName="GuardianTypo3"/>
+                            </p>
+                        </f:else>
+                    </f:if>
+                </section>
+            </f:for>
+        </f:then>
+        <f:else>
+            <p><f:translate key="packages.none" extensionName="GuardianTypo3"/></p>
+        </f:else>
+    </f:if>
+
+</div>
+
+</html>

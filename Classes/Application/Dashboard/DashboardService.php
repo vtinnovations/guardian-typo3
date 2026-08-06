@@ -14,9 +14,9 @@ namespace Vtinnovations\GuardianTypo3\Application\Dashboard;
 
 use Vtinnovations\GuardianTypo3\Application\Contract\SchedulerIntegrationInterface;
 use Vtinnovations\GuardianTypo3\Application\Environment\EnvironmentInspector;
-use Vtinnovations\GuardianTypo3\Application\License\LicenseManager;
+use Vtinnovations\GuardianTypo3\Application\Environment\EntitlementReader;
 use Vtinnovations\GuardianTypo3\Domain\Environment\EnvironmentCapabilities;
-use Vtinnovations\GuardianTypo3\Domain\License\LicenseTier;
+use Vtinnovations\GuardianTypo3\Domain\Environment\CapabilityTier;
 use Vtinnovations\GuardianTypo3\Infrastructure\Version\ExtensionInformation;
 
 /**
@@ -30,7 +30,7 @@ final class DashboardService
     public function __construct(
         private readonly ExtensionInformation $extensionInformation,
         private readonly EnvironmentInspector $environmentInspector,
-        private readonly LicenseManager $licenseManager,
+        private readonly EntitlementReader $entitlement,
         private readonly SchedulerIntegrationInterface $scheduler,
     ) {
     }
@@ -74,12 +74,12 @@ final class DashboardService
      */
     private function describeLicense(): array
     {
-        $tier = $this->licenseManager->currentStatus()->tier();
+        $tier = $this->entitlement->grant()->tier;
 
         return [
             'tier' => $tier->value,
-            'is_licensed' => $tier !== LicenseTier::None,
-            'is_pro' => $tier === LicenseTier::Pro,
+            'is_licensed' => $tier !== CapabilityTier::None,
+            'is_pro' => $tier === CapabilityTier::Pro,
         ];
     }
 }
