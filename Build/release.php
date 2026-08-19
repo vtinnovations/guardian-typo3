@@ -76,7 +76,7 @@ const EXCLUDED = [
     'phpunit.xml.dist',
     'composer.lock',
     '.DS_Store',
-    'deploy-brickie.sh',
+    'deploy-bundle.sh',
 ];
 
 /** Development documentation that describes the build rather than the product. */

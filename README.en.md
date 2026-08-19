@@ -8,7 +8,12 @@
 
 # Guardian for TYPO3
 
+<img src="Resources/Public/Icons/Extension.svg" width="64" height="64" alt="Guardian logo" align="right">
+
 *🇩🇪 [Deutsche Version](README.md)*
+
+[![Packagist](https://img.shields.io/packagist/v/vtinnovations/guardian-typo3.svg)](https://packagist.org/packages/vtinnovations/guardian-typo3)
+[![License: LGPL-3.0-or-later](https://img.shields.io/badge/license-LGPL--3.0--or--later-blue.svg)](LICENSE)
 
 **Admin cockpit for Composer updates, backups, recovery and extension
 management in TYPO3 13.4 and 14** — by [V&T Innovations](https://www.v-t.one).
@@ -392,6 +397,14 @@ transitions, managed-ownership and removal). See
   **standalone recovery panel**.
 - The unit tests are CMS-independent; full TYPO3 functional coverage depends on
   the target environment’s PHP/Composer/database tooling.
+
+## Project information
+
+- **GitHub**: [github.com/vtinnovations/guardian-typo3](https://github.com/vtinnovations/guardian-typo3)
+- **Packagist**: [packagist.org/packages/vtinnovations/guardian-typo3](https://packagist.org/packages/vtinnovations/guardian-typo3)
+- **Installation**: `composer require vtinnovations/guardian-typo3`
+- **Licence**: LGPL-3.0-or-later
+- **Publisher**: [V&T Innovations](https://www.v-t.one)
 
 ## Licence and copyright
 

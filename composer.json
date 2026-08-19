@@ -20,7 +20,9 @@
         }
     ],
     "support": {
-        "issues": "https://www.v-t.one"
+        "issues": "https://github.com/vtinnovations/guardian-typo3/issues",
+        "source": "https://github.com/vtinnovations/guardian-typo3",
+        "docs": "https://github.com/vtinnovations/guardian-typo3/tree/main/Documentation"
     },
     "require": {
         "php": "~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0",
