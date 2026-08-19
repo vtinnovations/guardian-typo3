@@ -6,257 +6,308 @@
   @copyright V&T Innovations 2026 - 2028
 -->
 
-# Security Model — Guardian for TYPO3
+# Sicherheitsmodell — Guardian für TYPO3
 
-Guardian is a high-privilege administration tool: it can run Composer, dump and
-restore databases, write and delete project files, and toggle maintenance mode.
-Its security model is therefore central to the product. This document describes,
-at a level appropriate for administrators and security reviewers, the controls
-Guardian enforces in production. It intentionally omits internal implementation
-details that are not needed to operate or assess Guardian safely.
+Guardian ist ein hochprivilegiertes Administrationswerkzeug: Es kann Composer
+ausführen, Datenbanken dumpen und wiederherstellen, Projektdateien schreiben
+und löschen sowie den Wartungsmodus umschalten. Sein Sicherheitsmodell ist
+daher zentral für das Produkt. Dieses Dokument beschreibt, auf einem für
+Administratoren und Sicherheitsprüfer angemessenen Niveau, die Kontrollen, die
+Guardian im Produktivbetrieb durchsetzt. Es lässt absichtlich interne
+Implementierungsdetails aus, die für den sicheren Betrieb oder die sichere
+Beurteilung von Guardian nicht nötig sind.
 
-## 1. Scope and security objectives
+## 1. Umfang und Sicherheitsziele
 
-Guardian's security controls exist to ensure that only authorised
-administrators can trigger high-impact operations, that every such operation is
-reversible or fails safely, that the system cannot be driven outside its
-intended boundaries, and that no secret is exposed to a browser, a log, or an
-unprivileged user. Licensing and entitlement enforcement is treated as a
-security concern and is performed server-side.
+Guardians Sicherheitskontrollen sollen sicherstellen, dass nur autorisierte
+Administratoren hochwirksame Operationen auslösen können, dass jede solche
+Operation reversibel ist oder sicher fehlschlägt, dass das System nicht über
+seine vorgesehenen Grenzen hinaus getrieben werden kann und dass kein Geheimnis
+gegenüber einem Browser, einem Log oder einem unprivilegierten Benutzer
+offengelegt wird. Lizenzierung und Berechtigungsdurchsetzung werden als
+Sicherheitsbelang behandelt und serverseitig durchgeführt.
 
-The objectives are:
+Die Ziele sind:
 
-- restrict all Guardian functionality to TYPO3 backend administrators;
-- protect every state-changing request against forgery;
-- enforce licence entitlements on the server, not in the browser;
-- run external processes without any shell interpretation;
-- contain all Guardian activity to well-defined filesystem boundaries;
-- make destructive operations recoverable, with automatic rollback on failure;
-- keep secrets out of responses, logs, and process listings.
+- die gesamte Guardian-Funktionalität auf TYPO3-Backend-Administratoren zu
+  beschränken;
+- jeden zustandsändernden Request gegen Fälschung zu schützen;
+- Lizenzberechtigungen auf dem Server durchzusetzen, nicht im Browser;
+- externe Prozesse ohne jede Shell-Interpretation auszuführen;
+- jede Guardian-Aktivität auf klar definierte Dateisystemgrenzen zu begrenzen;
+- destruktive Operationen wiederherstellbar zu machen, mit automatischem
+  Rollback bei Fehlschlag;
+- Geheimnisse aus Antworten, Logs und Prozesslisten herauszuhalten.
 
-## 2. Access control
+## 2. Zugriffskontrolle
 
-- **Administrators only.** The backend module is registered so that TYPO3 grants
-  access exclusively to backend administrators, and this is re-asserted in
-  application code on every request and every AJAX endpoint. The access
-  guarantee never depends on routing configuration alone.
-- **Uniform enforcement.** Every endpoint independently re-checks administrator
-  status; no endpoint assumes that reaching it implies authorisation.
-- **Entitlement gate.** Beyond the administrator check, feature access is gated
-  by the active licence tier (see §4). Read-only status views remain available so
-  an administrator can always see the current state and activate a licence.
-- **Version-neutral.** The authorisation behaviour is identical on the supported
-  TYPO3 releases and requires no version-specific branching.
+- **Nur Administratoren.** Das Backend-Modul ist so registriert, dass TYPO3
+  den Zugriff ausschließlich Backend-Administratoren gewährt, und dies wird im
+  Anwendungscode bei jedem Request und jedem AJAX-Endpunkt erneut geprüft. Die
+  Zugriffsgarantie hängt niemals allein von der Routing-Konfiguration ab.
+- **Einheitliche Durchsetzung.** Jeder Endpunkt prüft unabhängig erneut den
+  Administratorstatus; kein Endpunkt geht davon aus, dass das Erreichen des
+  Endpunkts bereits eine Autorisierung bedeutet.
+- **Berechtigungs-Gate.** Über die Administratorprüfung hinaus wird der
+  Funktionszugriff durch die aktive Lizenzstufe geregelt (siehe §4).
+  Schreibgeschützte Statusansichten bleiben verfügbar, damit ein
+  Administrator jederzeit den aktuellen Zustand sehen und eine Lizenz
+  aktivieren kann.
+- **Versionsneutral.** Das Autorisierungsverhalten ist auf den unterstützten
+  TYPO3-Releases identisch und erfordert keine versionsspezifische
+  Verzweigung.
 
-## 3. Request protection
+## 3. Request-Schutz
 
-- **CSRF protection.** Every state-changing endpoint validates TYPO3's built-in
-  backend request/CSRF token in addition to the administrator check. Backend AJAX
-  URLs are generated by TYPO3 with the token embedded.
-- **POST-only mutations.** All operations that change state are exposed only over
-  POST; read-only queries use side-effect-free requests.
-- **Input validation.** Request payloads are validated and normalised before any
-  disk or process interaction; malformed input is rejected with a safe, generic
-  error.
+- **CSRF-Schutz.** Jeder zustandsändernde Endpunkt validiert zusätzlich zur
+  Administratorprüfung das eingebaute Backend-Request-/CSRF-Token von TYPO3.
+  Backend-AJAX-URLs werden von TYPO3 mit eingebettetem Token erzeugt.
+- **Nur POST für Mutationen.** Alle zustandsändernden Operationen sind
+  ausschließlich über POST erreichbar; schreibgeschützte Abfragen verwenden
+  nebenwirkungsfreie Requests.
+- **Eingabevalidierung.** Request-Payloads werden validiert und normalisiert,
+  bevor irgendeine Datenträger- oder Prozessinteraktion erfolgt; fehlerhafte
+  Eingaben werden mit einem sicheren, generischen Fehler zurückgewiesen.
 
-## 4. Licence and entitlement security
+## 4. Lizenz- und Berechtigungssicherheit
 
-Guardian requires an activated V-T.ONE licence, and licensing is enforced as a
-security boundary. This section states the properties administrators and
-reviewers can rely on. How those properties are implemented, and where in the
-product they are implemented, is deliberately not described.
+Guardian benötigt eine aktivierte V-T.ONE-Lizenz, und die Lizenzierung wird
+als Sicherheitsgrenze durchgesetzt. Dieser Abschnitt nennt die Eigenschaften,
+auf die sich Administratoren und Prüfer verlassen können. Wie diese
+Eigenschaften implementiert sind und an welcher Stelle im Produkt, wird
+bewusst nicht beschrieben.
 
-- **Server-side enforcement.** Entitlement decisions are made on the server, and
-  both Free and Pro capabilities are enforced there. Any interface state that
-  appears to lock or unlock a feature is a convenience only and is never trusted
-  for access control.
-- **Private storage.** Licence data is stored in a private runtime location
-  outside the public web root, with restrictive file permissions, and is never
-  served to the browser.
-- **Authenticated, integrity-protected licence data.** Licence data is validated
-  for authenticity and integrity before it is honoured, so a modified,
-  hand-written or substituted licence is not accepted. Verification relies on
-  material that only the vendor can produce; the distributed product can check a
-  licence but cannot issue one.
-- **Local routine checks.** Ordinary entitlement checks are performed locally and
-  require no network access, so normal operation continues offline for as long as
-  the licence is valid.
-- **Remote contact only when warranted.** Guardian contacts V-T.ONE during
-  activation, during an explicit administrator-initiated refresh, and when
-  V-T.ONE sends an authorised licence update to the installation.
-- **Atomic updates.** A licence update is applied atomically: either the complete
-  new licence replaces the previous one, or the previous one is preserved. A
-  failed or unreachable update never revokes a currently valid licence, and an
-  update cannot move an installation to an older licence than it already holds.
-- **Fail-restricted, not fail-open and not fail-closed-globally.** If licence
-  validation fails, only the restricted (licensed) Guardian functions are
-  disabled; the administrator retains access to status and licence-management
-  views so the situation can be corrected. Nothing is deleted or corrupted on
-  failure.
-- **Free and Pro entitlements.** Both tiers require an activated licence and are
-  enforced on the server for every protected operation, including operations
-  reached from the command line, the scheduler and background workers.
-- **Installation binding.** A licence authorises specific host names, and
-  entitlement additionally requires one of them to be configured for this
-  installation in TYPO3 Site Configuration. Copying licence data to another
-  installation does not carry entitlement with it.
-- **Authorised fallback.** An expired Pro licence keeps the Free feature set only
-  when the licence itself permits it; otherwise expiry removes access to every
-  restricted function. No licensed state is ever created locally.
-- **No secret exposure.** The full licence key and any authentication material
-  are never sent to the browser, embedded in client-side state, or written to
-  ordinary logs.
+- **Serverseitige Durchsetzung.** Berechtigungsentscheidungen werden auf dem
+  Server getroffen, und sowohl Free- als auch Pro-Funktionen werden dort
+  durchgesetzt. Jeder Oberflächenzustand, der eine Funktion zu sperren oder
+  freizuschalten scheint, ist nur eine Komfortanzeige und wird niemals für die
+  Zugriffskontrolle vertraut.
+- **Private Speicherung.** Lizenzdaten werden an einem privaten
+  Laufzeit-Speicherort außerhalb des öffentlichen Web-Roots mit restriktiven
+  Dateiberechtigungen gespeichert und niemals an den Browser ausgeliefert.
+- **Authentifizierte, integritätsgeschützte Lizenzdaten.** Lizenzdaten werden
+  vor ihrer Verwendung auf Echtheit und Integrität geprüft, sodass eine
+  veränderte, handgeschriebene oder ausgetauschte Lizenz nicht akzeptiert
+  wird. Die Verifikation stützt sich auf Material, das nur der Hersteller
+  erzeugen kann; das ausgelieferte Produkt kann eine Lizenz prüfen, aber keine
+  ausstellen.
+- **Lokale Routineprüfungen.** Gewöhnliche Berechtigungsprüfungen erfolgen
+  lokal und erfordern keinen Netzwerkzugriff, sodass der normale Betrieb
+  offline fortgesetzt wird, solange die Lizenz gültig ist.
+- **Fernkontakt nur bei Bedarf.** Guardian kontaktiert V-T.ONE bei der
+  Aktivierung, bei einer explizit vom Administrator ausgelösten Aktualisierung
+  und wenn V-T.ONE ein autorisiertes Lizenz-Update an die Installation sendet.
+- **Atomare Updates.** Ein Lizenz-Update wird atomar angewendet: Entweder
+  ersetzt die vollständige neue Lizenz die vorherige, oder die vorherige
+  bleibt erhalten. Ein fehlgeschlagenes oder nicht erreichbares Update
+  widerruft niemals eine aktuell gültige Lizenz, und ein Update kann eine
+  Installation nicht auf eine ältere Lizenz zurückstufen, als sie bereits
+  besitzt.
+- **Fail-restricted, nicht fail-open und nicht global fail-closed.** Schlägt
+  die Lizenzvalidierung fehl, werden nur die eingeschränkten (lizenzierten)
+  Guardian-Funktionen deaktiviert; der Administrator behält Zugriff auf
+  Status- und Lizenzverwaltungsansichten, damit die Situation korrigiert
+  werden kann. Bei einem Fehlschlag wird nichts gelöscht oder beschädigt.
+- **Free- und Pro-Berechtigungen.** Beide Stufen erfordern eine aktivierte
+  Lizenz und werden auf dem Server für jede geschützte Operation durchgesetzt,
+  einschließlich Operationen, die über die Kommandozeile, den Scheduler und
+  Hintergrund-Worker erreicht werden.
+- **Installationsbindung.** Eine Lizenz autorisiert bestimmte Hostnamen, und
+  die Berechtigung erfordert zusätzlich, dass einer davon für diese
+  Installation in der TYPO3-Site-Konfiguration konfiguriert ist. Das Kopieren
+  von Lizenzdaten auf eine andere Installation überträgt die Berechtigung
+  nicht mit.
+- **Autorisierter Fallback.** Eine abgelaufene Pro-Lizenz behält den
+  Free-Funktionsumfang nur, wenn die Lizenz selbst das erlaubt; andernfalls
+  entzieht der Ablauf den Zugriff auf jede eingeschränkte Funktion. Es wird
+  niemals lokal ein lizenzierter Zustand erzeugt.
+- **Keine Geheimnis-Offenlegung.** Der vollständige Lizenzschlüssel und jedes
+  Authentifizierungsmaterial werden niemals an den Browser gesendet, im
+  clientseitigen Zustand eingebettet oder in gewöhnliche Logs geschrieben.
 
-## 5. Process execution
+## 5. Prozessausführung
 
-- **No shell interpretation.** External commands (for example Composer and
-  database tooling) are executed strictly through argument arrays. Guardian never
-  builds or runs a shell command string, and never uses `exec`, `shell_exec`,
-  `system`, or backticks. This removes command-injection as a class of risk.
-- **Detached workers.** Long-running, high-impact operations run in dedicated
-  background processes rather than in the web request, so a browser disconnect
-  cannot leave an operation in an ambiguous half-state.
-- **Secrets off the command line.** Sensitive values required by a subprocess are
-  passed through the process environment, never as command arguments, keeping them
-  out of process listings and diagnostic output.
-- **Binary validation.** The PHP CLI binary Guardian uses is validated as a real
-  command-line interpreter before it is trusted to run a job.
+- **Keine Shell-Interpretation.** Externe Befehle (zum Beispiel Composer und
+  Datenbank-Tooling) werden strikt über Argument-Arrays ausgeführt. Guardian
+  baut oder führt niemals einen Shell-Befehls-String aus und verwendet
+  niemals `exec`, `shell_exec`, `system` oder Backticks. Das eliminiert
+  Command-Injection als Risikoklasse.
+- **Abgekoppelte Worker.** Lang laufende, hochwirksame Operationen laufen in
+  dedizierten Hintergrundprozessen statt im Web-Request, sodass ein
+  Browser-Verbindungsabbruch eine Operation nicht in einem mehrdeutigen
+  Zwischenzustand belassen kann.
+- **Geheimnisse nicht auf der Kommandozeile.** Sensible Werte, die ein
+  Subprozess benötigt, werden über die Prozessumgebung übergeben, niemals als
+  Kommandozeilenargumente, damit sie nicht in Prozesslisten oder
+  Diagnoseausgaben erscheinen.
+- **Validierung der Binärdatei.** Die von Guardian verwendete PHP-CLI-Binärdatei
+  wird als echter Kommandozeileninterpreter validiert, bevor ihr die
+  Ausführung eines Jobs anvertraut wird.
 
-## 6. Filesystem and archive security
+## 6. Dateisystem- und Archivsicherheit
 
-- **Containment.** Guardian confines all of its runtime state to a single private
-  working directory under the project's `var/` directory. Every derived path is
-  normalised and checked so that a path which would escape that boundary is
-  rejected.
-- **Traversal and unsafe-link prevention.** Path handling resolves relative
-  segments without following symlinks for the security decision, so a symbolic
-  link cannot tunnel a "contained" path outside its boundary. Archive contents
-  are screened before extraction and any absolute path or parent-directory segment
-  is refused.
-- **ZIP upload inspection.** Uploaded archives are inspected before use for path
-  traversal, unsafe symbolic links, excessive entry counts or sizes, and
-  decompression-bomb characteristics; an archive that fails any check is rejected
-  and never extracted into the project.
-- **Private staging.** Uploaded and in-progress content is handled in a private
-  staging area with restrictive permissions and is only promoted into the project
-  after it has passed validation.
+- **Eingrenzung.** Guardian begrenzt seinen gesamten Laufzeitzustand auf ein
+  einziges privates Arbeitsverzeichnis unter dem `var/`-Verzeichnis des
+  Projekts. Jeder abgeleitete Pfad wird normalisiert und geprüft, sodass ein
+  Pfad, der diese Grenze verlassen würde, zurückgewiesen wird.
+- **Verhinderung von Traversal und unsicheren Links.** Die Pfadbehandlung löst
+  relative Segmente auf, ohne für die Sicherheitsentscheidung Symlinks zu
+  folgen, sodass ein symbolischer Link einen „eingegrenzten“ Pfad nicht aus
+  seiner Grenze heraustunneln kann. Archivinhalte werden vor der Extraktion
+  geprüft, und jeder absolute Pfad oder jedes Eltern-Verzeichnis-Segment wird
+  zurückgewiesen.
+- **ZIP-Upload-Prüfung.** Hochgeladene Archive werden vor der Verwendung auf
+  Path-Traversal, unsichere symbolische Links, übermäßige Eintragsanzahlen
+  oder -größen sowie Merkmale einer Dekompressionsbombe geprüft; ein Archiv,
+  das eine Prüfung nicht besteht, wird zurückgewiesen und niemals in das
+  Projekt extrahiert.
+- **Privates Staging.** Hochgeladener und in Bearbeitung befindlicher Inhalt
+  wird in einem privaten Staging-Bereich mit restriktiven Berechtigungen
+  behandelt und erst nach bestandener Validierung in das Projekt übernommen.
 
-## 7. Update and extension-management safety
+## 7. Sicherheit von Update und Extension-Verwaltung
 
-- **Preview before change.** Updates and extension installs/removals are analysed
-  in an isolated dry run first; the live project is not modified during analysis.
-- **Guarded execution.** A live operation requires explicit administrator
-  confirmation and is preceded by a mandatory safety backup.
-- **Managed ownership.** Locally installed extensions are tracked with
-  managed-ownership metadata so Guardian only removes source directories it
-  created, and can safely reinstall a previously removed upload. Guardian never
-  deletes unrelated files or its own package directory implicitly.
-- **Self-management protection.** Disabling or removing Guardian itself requires
-  typed confirmation and runs through a controlled, deferred path.
+- **Vorschau vor Änderung.** Updates und Extension-Installationen/-Entfernungen
+  werden zunächst in einem isolierten Probelauf analysiert; das Live-Projekt
+  wird während der Analyse nicht verändert.
+- **Abgesicherte Ausführung.** Eine Live-Operation erfordert eine explizite
+  Administratorbestätigung und wird von einem verpflichtenden
+  Sicherheits-Backup eingeleitet.
+- **Verwaltete Eigentümerschaft.** Lokal installierte Extensions werden mit
+  Metadaten zur verwalteten Eigentümerschaft nachverfolgt, sodass Guardian nur
+  Quellverzeichnisse entfernt, die es selbst erstellt hat, und einen zuvor
+  entfernten Upload sicher erneut installieren kann. Guardian löscht niemals
+  implizit fremde Dateien oder sein eigenes Paketverzeichnis.
+- **Schutz der Selbstverwaltung.** Das Deaktivieren oder Entfernen von Guardian
+  selbst erfordert eine eingetippte Bestätigung und läuft über einen
+  kontrollierten, verzögerten Pfad.
 
-## 8. Backup and recovery safety
+## 8. Sicherheit von Backup und Recovery
 
-- **Backup integrity.** Backups carry a manifest and checksums and are validated
-  before they are offered for recovery. Retention limits are enforced.
-- **Backup location.** Backups are stored within Guardian's private working
-  directory and are not placed in web-accessible or deploy-wiped locations.
-- **Mandatory pre-change backups.** Update and extension operations create a
-  safety backup before any change so the prior state can be restored.
-- **Recovery is destructive and guarded.** Recovery requires a mandatory dry run,
-  explicit administrator confirmation, and component selection. It restores files
-  and database from a validated backup, rebuilds dependencies safely in isolation,
-  and switches them into place atomically.
-- **Transactional recovery.** Recovery is journalled so an interrupted recovery
-  can be detected and rolled back, and the result is verified afterwards.
+- **Backup-Integrität.** Backups tragen ein Manifest und Prüfsummen und werden
+  validiert, bevor sie zur Wiederherstellung angeboten werden.
+  Aufbewahrungsgrenzen werden durchgesetzt.
+- **Backup-Speicherort.** Backups werden innerhalb des privaten
+  Arbeitsverzeichnisses von Guardian gespeichert und nicht an
+  web-zugänglichen oder beim Deployment gelöschten Orten abgelegt.
+- **Verpflichtende Backups vor Änderungen.** Update- und
+  Extension-Operationen erstellen vor jeder Änderung ein Sicherheits-Backup,
+  damit der vorherige Zustand wiederhergestellt werden kann.
+- **Recovery ist destruktiv und abgesichert.** Recovery erfordert einen
+  verpflichtenden Probelauf, eine explizite Administratorbestätigung und eine
+  Komponentenauswahl. Es stellt Dateien und Datenbank aus einem validierten
+  Backup wieder her, baut Abhängigkeiten sicher isoliert neu auf und
+  wechselt sie atomar ein.
+- **Transaktionale Wiederherstellung.** Recovery wird journalisiert, sodass
+  eine unterbrochene Wiederherstellung erkannt und zurückgerollt werden kann,
+  und das Ergebnis wird anschließend verifiziert.
 
-## 9. Standalone recovery protection
+## 9. Schutz der eigenständigen Recovery
 
-Guardian can deploy a self-contained recovery entry point into the public web
-root so that a site can be restored even when TYPO3 no longer boots. Because this
-component is uniquely sensitive, it is protected by:
+Guardian kann einen in sich geschlossenen Wiederherstellungs-Einstiegspunkt in
+das öffentliche Web-Root ausliefern, damit eine Site auch dann wiederhergestellt
+werden kann, wenn TYPO3 nicht mehr startet. Weil diese Komponente einzigartig
+sensibel ist, ist sie geschützt durch:
 
-- opt-in, administrator-initiated deployment, with straightforward removal;
-- a configurable, hard-to-guess filename;
-- token-based authentication using a timing-safe comparison, where the token is
-  stored only in hashed form or supplied through a server environment variable;
-- brute-force rate limiting;
-- reuse of the same validated recovery engine as the backend, rather than a
-  separate, less-reviewed implementation.
+- Opt-in-Deployment, ausgelöst durch den Administrator, mit unkomplizierter
+  Entfernung;
+- einen konfigurierbaren, schwer zu erratenden Dateinamen;
+- Token-basierte Authentifizierung mit zeitkonstantem Vergleich, wobei das
+  Token nur in gehashter Form gespeichert oder über eine
+  Server-Umgebungsvariable bereitgestellt wird;
+- Brute-Force-Ratenbegrenzung;
+- Wiederverwendung derselben validierten Recovery-Engine wie das Backend,
+  statt einer separaten, weniger geprüften Implementierung.
 
-Administrators are strongly advised to add web-server-level access restrictions
-(for example IP allow-listing or HTTP authentication) to the recovery entry point
-and to remove it when it is not needed.
+Administratoren wird dringend empfohlen, dem Recovery-Einstiegspunkt
+Zugriffsbeschränkungen auf Webserver-Ebene hinzuzufügen (zum Beispiel eine
+IP-Positivliste oder HTTP-Authentifizierung) und ihn zu entfernen, wenn er
+nicht benötigt wird.
 
-## 10. Secrets and logging
+## 10. Geheimnisse und Logging
 
-- **Secret redaction.** Log output and API responses pass through centralised
-  redaction so that credentials, tokens, transport connection strings, and
-  similar values are removed before anything leaves the server.
-- **No sensitive values in the browser.** The full licence key, licence
-  authentication material, and recovery tokens are never delivered to the client.
-  Logging is redacted so that this material does not reach ordinary logs either.
-- **Security-relevant logging.** High-impact operations and failures are recorded
-  in Guardian's job logs and the TYPO3 system log, in a form that supports
-  auditing without disclosing secrets or absolute installation paths.
+- **Schwärzung von Geheimnissen.** Log-Ausgaben und API-Antworten durchlaufen
+  eine zentrale Schwärzung, sodass Zugangsdaten, Tokens, Transport-Connection-
+  Strings und ähnliche Werte entfernt werden, bevor irgendetwas den Server
+  verlässt.
+- **Keine sensiblen Werte im Browser.** Der vollständige Lizenzschlüssel,
+  Lizenz-Authentifizierungsmaterial und Recovery-Tokens werden niemals an den
+  Client ausgeliefert. Das Logging ist so geschwärzt, dass dieses Material
+  auch gewöhnliche Logs nicht erreicht.
+- **Sicherheitsrelevantes Logging.** Hochwirksame Operationen und Fehlschläge
+  werden in Guardians Job-Logs und im TYPO3-System-Log erfasst, in einer
+  Form, die Auditing ermöglicht, ohne Geheimnisse oder absolute
+  Installationspfade offenzulegen.
 
-## 11. External communication
+## 11. Externe Kommunikation
 
-- **Fixed trusted services.** Guardian communicates with a small, fixed set of
-  trusted V-T.ONE HTTPS services for licence activation, refresh, and an
-  operational usage signal, plus the public extension-repository lookups used by
-  the Extensions section. The destinations are fixed in the product and cannot be
-  redirected by configuration, by request data or by a remote response.
-- **TLS enforced.** Transport-layer security verification is always enabled for
-  these requests; certificate or host verification is never disabled.
-- **Minimal data.** The operational signal transmits only the product identifier
-  and the normalised site domain. No licence key or personal data is included.
-- **Fail-safe.** If an external service is unreachable, Guardian continues to
-  operate within the bounds of the locally validated licence; a network failure
-  never grants access it would not otherwise have.
+- **Feste, vertrauenswürdige Dienste.** Guardian kommuniziert mit einer
+  kleinen, festen Menge vertrauenswürdiger V-T.ONE-HTTPS-Dienste für
+  Lizenzaktivierung, -aktualisierung und ein operatives Nutzungssignal, plus
+  den öffentlichen Extension-Repository-Abfragen, die vom Extensions-Bereich
+  genutzt werden. Die Ziele sind im Produkt fest hinterlegt und können weder
+  durch Konfiguration noch durch Request-Daten noch durch eine
+  Remote-Antwort umgeleitet werden.
+- **TLS erzwungen.** Die Transportsicherheitsprüfung ist für diese Requests
+  immer aktiviert; Zertifikats- oder Host-Verifikation wird niemals
+  deaktiviert.
+- **Minimale Daten.** Das operative Signal überträgt nur den
+  Produktbezeichner und die normalisierte Site-Domain. Kein Lizenzschlüssel
+  und keine personenbezogenen Daten sind enthalten.
+- **Ausfallsicher.** Ist ein externer Dienst nicht erreichbar, arbeitet
+  Guardian innerhalb der Grenzen der lokal validierten Lizenz weiter; ein
+  Netzwerkausfall gewährt niemals Zugriff, der sonst nicht bestünde.
 
-## 12. Failure behaviour and rollback
+## 12. Fehlerverhalten und Rollback
 
-- **Automatic rollback.** If a live update or extension operation fails at any
-  stage after changes begin, Guardian restores the pre-operation state from the
-  mandatory safety backup.
-- **Maintenance-mode cleanup.** Maintenance mode is always returned to its prior
-  state after an operation, including after a failure, so a crashed run cannot
-  leave a site stuck in maintenance.
-- **Operation locks.** A named, non-blocking lock with stale-lock reclaim
-  prevents concurrent high-impact operations and ensures a crashed run cannot
-  wedge the system.
-- **Notification independence.** Failure to send a notification (for example a
-  recovery e-mail) never changes licence validity or the outcome of an operation.
+- **Automatisches Rollback.** Schlägt ein Live-Update oder eine
+  Extension-Operation nach Beginn der Änderungen auf irgendeiner Stufe fehl,
+  stellt Guardian den Zustand vor der Operation aus dem verpflichtenden
+  Sicherheits-Backup wieder her.
+- **Bereinigung des Wartungsmodus.** Der Wartungsmodus wird nach einer
+  Operation immer in seinen vorherigen Zustand zurückversetzt, auch nach
+  einem Fehlschlag, sodass ein abgestürzter Lauf eine Site nicht dauerhaft im
+  Wartungsmodus belassen kann.
+- **Operationssperren.** Eine benannte, nicht blockierende Sperre mit
+  Wiederaufnahme veralteter Sperren verhindert gleichzeitige hochwirksame
+  Operationen und stellt sicher, dass ein abgestürzter Lauf das System nicht
+  blockieren kann.
+- **Unabhängigkeit von Benachrichtigungen.** Ein Fehlschlag beim Versenden
+  einer Benachrichtigung (zum Beispiel einer Recovery-E-Mail) ändert niemals
+  die Gültigkeit der Lizenz oder das Ergebnis einer Operation.
 
-## 13. Operational responsibilities
+## 13. Betriebliche Verantwortlichkeiten
 
-Guardian enforces strong technical controls, but a secure deployment also depends
-on the administrator:
+Guardian setzt starke technische Kontrollen durch, aber eine sichere
+Bereitstellung hängt auch vom Administrator ab:
 
-- restrict TYPO3 administrator accounts to trusted personnel;
-- keep the project's `var/` directory writable only by the application and
-  protected from public access;
-- store downloaded backups and any exported recovery credentials securely and
-  outside the public web root;
-- protect and, when unused, remove the standalone recovery entry point, and add
-  web-server-level access restrictions to it;
-- keep the host, PHP, and TYPO3 core patched;
-- treat recovery tokens and licence credentials as sensitive and rotate them if
-  exposure is suspected.
+- TYPO3-Administratorkonten auf vertrauenswürdiges Personal beschränken;
+- das `var/`-Verzeichnis des Projekts nur für die Anwendung beschreibbar
+  halten und vor öffentlichem Zugriff schützen;
+- heruntergeladene Backups und exportierte Recovery-Zugangsdaten sicher und
+  außerhalb des öffentlichen Web-Roots aufbewahren;
+- den eigenständigen Recovery-Einstiegspunkt schützen und, wenn ungenutzt,
+  entfernen, sowie ihm Zugriffsbeschränkungen auf Webserver-Ebene
+  hinzufügen;
+- Host, PHP und TYPO3-Core gepatcht halten;
+- Recovery-Tokens und Lizenz-Zugangsdaten als sensibel behandeln und bei
+  Verdacht auf Offenlegung rotieren.
 
-## 14. Security limitations
+## 14. Sicherheitsgrenzen
 
-- Guardian operates with the privileges of the PHP process; it cannot protect
-  against a compromised host, a compromised TYPO3 administrator account, or
-  filesystem access outside Guardian obtained by other means.
-- Correct operation of updates, recovery, and backups depends on the availability
-  and correctness of the host's PHP CLI, Composer, database, and archiving
-  tooling.
-- Rollback restores from the most recent safety backup; it cannot recover data
-  created after that backup was taken.
-- The standalone recovery entry point is powerful by design; its safety depends on
-  keeping its filename and token confidential and on the recommended web-server
-  protections.
-- Server-side entitlement enforcement protects Guardian's functions; it does not
-  and cannot prevent modification of an administrator's own self-hosted source
-  code, which remains the administrator's responsibility under the licence terms.
+- Guardian arbeitet mit den Rechten des PHP-Prozesses; es kann nicht vor
+  einem kompromittierten Host, einem kompromittierten
+  TYPO3-Administratorkonto oder Dateisystemzugriff außerhalb von Guardian,
+  der auf anderem Weg erlangt wurde, schützen.
+- Der korrekte Ablauf von Updates, Recovery und Backups hängt von der
+  Verfügbarkeit und Korrektheit der PHP-CLI, von Composer, der Datenbank und
+  dem Archivierungs-Tooling des Hosts ab.
+- Ein Rollback stellt aus dem jüngsten Sicherheits-Backup wieder her; es kann
+  keine Daten wiederherstellen, die nach diesem Backup entstanden sind.
+- Der eigenständige Recovery-Einstiegspunkt ist absichtlich mächtig; seine
+  Sicherheit hängt davon ab, Dateiname und Token vertraulich zu halten und
+  die empfohlenen Webserver-Schutzmaßnahmen anzuwenden.
+- Die serverseitige Berechtigungsdurchsetzung schützt Guardians Funktionen;
+  sie verhindert nicht und kann nicht verhindern, dass ein Administrator den
+  eigenen selbst gehosteten Quellcode verändert — das bleibt gemäß den
+  Lizenzbedingungen die Verantwortung des Administrators.

@@ -1,23 +1,24 @@
-# Compatibility Strategy — TYPO3 13.4 / 14
+# Kompatibilitätsstrategie — TYPO3 13.4 / 14
 
-How Guardian supports **TYPO3 13.4.9 through 14.x** from a single package, and the
-rules that keep it that way.
+Wie Guardian **TYPO3 13.4.9 bis 14.x** aus einem einzigen Paket unterstützt,
+und die Regeln, die das sicherstellen.
 
-## Supported versions
+## Unterstützte Versionen
 
-| Axis | Support |
+| Achse | Unterstützung |
 |---|---|
-| TYPO3 | **13.4.9** (minimum) through **14.x** |
-| PHP | **8.2** minimum, through 8.5 (`~8.2.0 \|\| ~8.3.0 \|\| ~8.4.0 \|\| ~8.5.0`) |
-| Installation mode | Composer (primary and only officially supported mode) |
+| TYPO3 | **13.4.9** (Minimum) bis **14.x** |
+| PHP | Minimum **8.2**, bis 8.5 (`~8.2.0 \|\| ~8.3.0 \|\| ~8.4.0 \|\| ~8.5.0`) |
+| Installationsmodus | Composer (primärer und einzig offiziell unterstützter Modus) |
 
-The effective PHP floor on any given site is whatever the installed TYPO3 core
-requires (TYPO3 13.4 runs on PHP 8.2+; TYPO3 14 raises the floor). Guardian itself
-imposes only the 8.2 minimum so it never blocks a valid TYPO3 13.4 install.
+Die effektive PHP-Untergrenze auf einer gegebenen Site ist das, was der
+installierte TYPO3-Core erzwingt (TYPO3 13.4 läuft ab PHP 8.2+; TYPO3 14 hebt
+die Untergrenze an). Guardian selbst erzwingt nur das Minimum von 8.2, damit
+es niemals eine gültige TYPO3-13.4-Installation blockiert.
 
-## Composer constraints
+## Composer-Constraints
 
-Applied consistently to every directly required `typo3/cms-*` package:
+Konsistent auf jedes direkt benötigte `typo3/cms-*`-Paket angewendet:
 
 ```json
 "require": {
@@ -30,103 +31,124 @@ Applied consistently to every directly required `typo3/cms-*` package:
 }
 ```
 
-- **No `typo3/cms` metapackage** — only the two subpackages actually used.
-- `psr/http-message: ^1.1 || ^2.0` matches the range TYPO3 13.4/14 themselves
-  allow; Composer resolves it to whatever the installed core pins.
-- Dev tooling spans both eras: `phpunit/phpunit: ^10.5 || ^11.0`,
-  `typo3/testing-framework: ^8.2.3 || ^9.0` — Composer selects the combination
-  compatible with the installed TYPO3.
+- **Kein `typo3/cms`-Metapaket** — nur die beiden tatsächlich genutzten
+  Unterpakete.
+- `psr/http-message: ^1.1 || ^2.0` entspricht der Spanne, die TYPO3 13.4/14
+  selbst erlauben; Composer löst dies auf das auf, was der installierte Core
+  vorgibt.
+- Die Dev-Tooling-Constraints umspannen beide Ären:
+  `phpunit/phpunit: ^10.5 || ^11.0`, `typo3/testing-framework: ^8.2.3 || ^9.0`
+  — Composer wählt die zum installierten TYPO3 passende Kombination.
 
-## Why no `ext_emconf.php`
+## Warum keine `ext_emconf.php`
 
-The only supported installation mode is Composer. In Composer mode TYPO3 derives
-all extension metadata (extension key, title, version constraints, dependencies)
-from `composer.json` (`type: typo3-cms-extension`, `extra.typo3/cms.extension-key`,
-and the `typo3/cms-*` version constraints). An `ext_emconf.php` would be needed
-only for **Classic (non-Composer) installs**, which Guardian does not target, and
-would then have to duplicate the constraints already in `composer.json` — a
-guaranteed source of drift and conflicting declarations.
+Der einzige unterstützte Installationsmodus ist Composer. Im Composer-Modus
+leitet TYPO3 alle Extension-Metadaten (Extension-Key, Titel,
+Versions-Constraints, Abhängigkeiten) aus `composer.json` ab (`type:
+typo3-cms-extension`, `extra.typo3/cms.extension-key` sowie die
+`typo3/cms-*`-Versions-Constraints). Eine `ext_emconf.php` wäre nur für
+**klassische (Nicht-Composer-)Installationen** nötig, die Guardian nicht
+adressiert, und müsste dann die bereits in `composer.json` vorhandenen
+Constraints duplizieren — eine garantierte Quelle für Abweichungen und
+widersprüchliche Deklarationen.
 
-Therefore `ext_emconf.php` is intentionally **omitted**. Should Classic-mode
-support ever be added, the file must declare exactly: TYPO3 `13.4.9`–below-`15`
-(`'typo3' => '13.4.9-14.4.99'`), PHP min `8.2.0`, extension key `guardian_typo3`,
-state `beta`/`stable` as appropriate — matching `composer.json` with no conflict.
+Daher wird `ext_emconf.php` absichtlich **weggelassen**. Sollte jemals
+Unterstützung für den klassischen Modus hinzukommen, muss die Datei exakt
+Folgendes deklarieren: TYPO3 `13.4.9`–unterhalb-`15`
+(`'typo3' => '13.4.9-14.4.99'`), PHP-Minimum `8.2.0`, Extension-Key
+`guardian_typo3`, Status `beta`/`stable` je nach Reifegrad — passend zu
+`composer.json`, ohne Widerspruch.
 
-## Shared-subset policy
+## Richtlinie zur gemeinsamen Teilmenge
 
-The default is **one shared implementation**. TYPO3-specific code is confined to
-`Classes/Typo3/` adapters, the single backend controller, and
-`Configuration/`+`Resources/`. Within that surface, only APIs present and
-identical in both 13.4.9 and 14 are used:
+Der Standard ist **eine gemeinsame Implementierung**. TYPO3-spezifischer Code
+ist auf die `Classes/Typo3/`-Adapter, den einzelnen Backend-Controller sowie
+`Configuration/`+`Resources/` begrenzt. Innerhalb dieser Oberfläche werden nur
+APIs verwendet, die in 13.4.9 und 14 gleichermaßen vorhanden und identisch
+sind:
 
-- Array-based backend-module registration (`routes/_default/target`).
-- `ModuleTemplateFactory` / `ModuleTemplate` (incl. `renderResponse()`, v12+).
+- Array-basierte Backend-Modul-Registrierung (`routes/_default/target`).
+- `ModuleTemplateFactory` / `ModuleTemplate` (inkl. `renderResponse()`, ab
+  v12+).
 - `UriBuilder::buildUriFromRoute()`.
-- `Environment` path/mode accessors.
-- Backend user via `BackendUserAuthentication` (adapter-isolated).
+- Pfad-/Modus-Zugriffe von `Environment`.
+- Backend-User über `BackendUserAuthentication` (im Adapter isoliert).
 - `Configuration/Icons.php` + `SvgIconProvider`.
-- Symfony DI (`Configuration/Services.yaml`) with no v14-only keys.
-- Core Fluid ViewHelpers only.
-- Plain browser JavaScript (no `@typo3/backend/*` import).
+- Symfony DI (`Configuration/Services.yaml`) ohne Nur-v14-Schlüssel.
+- Ausschließlich Core-Fluid-ViewHelper.
+- Reines Browser-JavaScript (kein `@typo3/backend/*`-Import).
 
-**No runtime version comparison (`version_compare`, `VersionNumberUtility`) is
-used anywhere** — where a shared API exists, it is used directly.
+**Nirgends wird ein Laufzeit-Versionsvergleich (`version_compare`,
+`VersionNumberUtility`) verwendet** — wo eine gemeinsame API existiert, wird
+sie direkt genutzt.
 
-## Adapters introduced for version differences
+## Für Versionsunterschiede eingeführte Adapter
 
-**None.** No TYPO3 13.4 ↔ 14 API incompatibility was found (see
-`CompatibilityAudit.md`). The `Classes/Typo3/` adapters exist to isolate the CMS
-from the pure domain — a design boundary, not a version shim.
+**Keine.** Es wurde keine TYPO3-13.4-↔-14-API-Inkompatibilität gefunden (siehe
+`CompatibilityAudit.md`). Die `Classes/Typo3/`-Adapter existieren, um das CMS
+von der reinen Domain zu isolieren — eine Design-Grenze, kein Versions-Shim.
 
-If a genuine incompatibility appears in a later phase, the rule is:
+Sollte in einer späteren Phase eine echte Inkompatibilität auftreten, gilt
+folgende Regel:
 
-1. Define an application-facing interface (a port) in `Application/Contract/`.
-2. Put each version's behaviour in a separate infrastructure/TYPO3 adapter.
-3. Select the adapter via DI / a capability check in the adapter — **not** via a
-   `version_compare` sprinkled through controllers or domain code.
-4. Keep controllers and domain services version-neutral.
-5. Document the adapter here and in `CompatibilityAudit.md`.
+1. Eine anwendungsseitige Schnittstelle (einen Port) in
+   `Application/Contract/` definieren.
+2. Das Verhalten jeder Version in einen separaten
+   Infrastructure-/TYPO3-Adapter legen.
+3. Den Adapter über DI / eine Fähigkeitsprüfung im Adapter auswählen —
+   **nicht** über ein durch Controller oder Domain-Code verstreutes
+   `version_compare`.
+4. Controller und Domain-Services versionsneutral halten.
+5. Den Adapter hier und in `CompatibilityAudit.md` dokumentieren.
 
-## APIs deliberately avoided
+## Bewusst vermiedene APIs
 
-- The `typo3/cms` metapackage (pulls in unneeded packages).
-- Any backend-module wiring that only exists from v14.
-- Deprecated RequireJS/`define()` global JS modules.
-- Runtime major-version branching.
+- Das `typo3/cms`-Metapaket (zieht unnötige Pakete nach).
+- Jede Backend-Modul-Verdrahtung, die erst ab v14 existiert.
+- Veraltete RequireJS-/`define()`-globale JS-Module.
+- Verzweigung nach Laufzeit-Hauptversion.
 
-## CI matrix (to be executed in isolated installs)
+## CI-Matrix (in isolierten Installationen auszuführen)
 
-| TYPO3 | PHP | Purpose |
+| TYPO3 | PHP | Zweck |
 |---|---|---|
-| 13.4.9 (lowest) | 8.2 | absolute minimum baseline |
-| latest 13.4.x | 8.3 (or 8.4) | current 13.4 LTS line |
-| lowest supported 14.0 | 8.2 → resolves to core's floor | 14 entry point |
-| latest 14.x | latest supported PHP | current 14 line |
+| 13.4.9 (niedrigste) | 8.2 | absolute Mindestbasis |
+| neueste 13.4.x | 8.3 (oder 8.4) | aktuelle 13.4-LTS-Linie |
+| niedrigste unterstützte 14.0 | 8.2 → löst auf die Untergrenze des Cores auf | Einstiegspunkt für 14 |
+| neueste 14.x | neueste unterstützte PHP-Version | aktuelle 14-Linie |
 
-`--prefer-lowest` runs on the 13.4.9/PHP-8.2 cell verify the minimum constraints
-actually resolve. See `Testing.md` for the exact commands.
+`--prefer-lowest`-Läufe auf der Zelle 13.4.9/PHP-8.2 verifizieren, dass sich
+die Mindest-Constraints tatsächlich auflösen lassen. Siehe `Testing.md` für
+die genauen Befehle.
 
-## Release & deprecation policy
+## Release- und Deprecation-Richtlinie
 
-- One package, one branch, supports 13.4.9→14.x for the lifetime of TYPO3 13.4 LTS.
-- Bugfixes target the shared codebase; no per-version forks.
-- Deprecations are avoided by staying on the shared subset; if a later TYPO3 15
-  removes something, support is added via an adapter (per the rule above), never a
-  breaking change to the shared code.
+- Ein Paket, ein Branch, unterstützt 13.4.9→14.x für die Lebensdauer der
+  TYPO3-13.4-LTS.
+- Fehlerbehebungen zielen auf die gemeinsame Codebasis; keine
+  versionsspezifischen Forks.
+- Deprecations werden vermieden, indem auf der gemeinsamen Teilmenge geblieben
+  wird; sollte ein späteres TYPO3 15 etwas entfernen, wird die Unterstützung
+  über einen Adapter hinzugefügt (gemäß obiger Regel), niemals über eine
+  Breaking Change am gemeinsamen Code.
 
-## Dropping TYPO3 13 (future)
+## Wegfall von TYPO3 13 (zukünftig)
 
-When TYPO3 13.4 LTS reaches end of life:
+Wenn die TYPO3-13.4-LTS das Ende ihres Lebenszyklus erreicht:
 
-1. Bump `typo3/cms-*` to `^14.4 || ^15.0` (or as appropriate) in a new **major**
-   Guardian release; keep the 13.4-compatible line on a maintenance branch.
-2. Raise the PHP floor to TYPO3 14's minimum.
-3. Remove any 13.4-only adapters (currently none) and simplify.
-4. Update `CompatibilityAudit.md`, this file, `Testing.md`, and `README.md`.
+1. `typo3/cms-*` in einem neuen **Major**-Release von Guardian auf
+   `^14.4 || ^15.0` (oder passend) anheben; die 13.4-kompatible Linie auf
+   einem Wartungs-Branch belassen.
+2. Die PHP-Untergrenze auf das Minimum von TYPO3 14 anheben.
+3. Etwaige Nur-13.4-Adapter entfernen (aktuell keine vorhanden) und
+   vereinfachen.
+4. `CompatibilityAudit.md`, diese Datei, `Testing.md` und `README.md`
+   aktualisieren.
 
-## Known runtime checks still required
+## Noch erforderliche Laufzeitprüfungen
 
-Static analysis cannot substitute for installing on real cores. Before release,
-run the CI matrix above and manually verify the backend module on **both** a
-13.4.9 and a 14.x instance (module appears under System for admins; all seven
-sections render; DI container compiles; icon/labels/XLF resolve).
+Statische Analyse kann die Installation auf echten Cores nicht ersetzen. Vor
+einem Release die obige CI-Matrix ausführen und das Backend-Modul manuell auf
+**beiden**, einer 13.4.9- und einer 14.x-Instanz, verifizieren (Modul
+erscheint für Administratoren unter System; alle sieben Abschnitte rendern;
+DI-Container kompiliert; Icon/Labels/XLF werden aufgelöst).

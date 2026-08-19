@@ -86,6 +86,7 @@ const EXCLUDED_DOCS = [
     'Documentation/ImplementationRoadmap.md',
     'Documentation/VisualParityChecklist.md',
     'Documentation/CompatibilityAudit.md',
+    'Documentation/CompatibilityAudit.en.md',
 ];
 
 /** Files whose integrity a customer may want to confirm. */

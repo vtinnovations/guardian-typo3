@@ -1,153 +1,174 @@
-# Architecture — Guardian for TYPO3
+# Architektur — Guardian für TYPO3
 
-Guardian is built as a layered, ports-and-adapters architecture. The central
-design rule, learned from auditing the Contao original, is:
+Guardian ist als geschichtete Ports-and-Adapters-Architektur aufgebaut. Die
+zentrale Entwurfsregel, gewonnen aus der Auditierung des Contao-Originals,
+lautet:
 
-> **Core backup, job, schedule and licensing logic must never depend on TYPO3
-> globals, the filesystem, the clock, or an external process.** Everything
-> environment-specific is reached through an interface (a *port*) implemented by
-> a thin *adapter*.
+> **Die Kernlogik für Backup, Jobs, Zeitpläne und Lizenzierung darf niemals von
+> TYPO3-Globals, dem Dateisystem, der Uhr oder einem externen Prozess abhängen.**
+> Alles Umgebungsspezifische wird über eine Schnittstelle (einen *Port*)
+> erreicht, die von einem schlanken *Adapter* implementiert wird.
 
-This keeps the valuable, hard-won business rules (schedule math, entitlement
-windows, archive-safety, job lifecycle) pure and unit-testable, and confines the
-risky, framework- and OS-specific parts to small, individually reviewable seams.
+Das hält die wertvollen, hart erarbeiteten Geschäftsregeln (Zeitplan-Mathematik,
+Berechtigungsfenster, Archiv-Sicherheit, Job-Lebenszyklus) rein und
+unit-testbar und begrenzt die riskanten, framework- und
+betriebssystemspezifischen Teile auf kleine, einzeln überprüfbare Nahtstellen.
 
-## Layers
+## Schichten
 
 ```
 Classes/
-├── Domain/            Pure business rules & value objects. No I/O, no TYPO3,
-│                      no clock, no globals. Fully unit-testable.
-├── Application/       Use-case services + ports (Contract/). Orchestrate the
-│                      domain; depend only on interfaces, never on adapters.
-├── Infrastructure/    Framework-neutral adapters: JSON repositories, flock,
-│                      clock, paths, the (Phase-1 refusing) command executor.
-├── Typo3/             TYPO3-specific adapters. The ONLY code that touches
-│                      Environment, BE_USER, TYPO3 logging, Scheduler, Mailer.
-└── Controller/Backend/ Backend edge: turns a request into service calls and a
-                        Fluid response. No business logic.
+├── Domain/            Reine Geschäftsregeln & Value Objects. Keine I/O, kein
+│                      TYPO3, keine Uhr, keine Globals. Vollständig unit-testbar.
+├── Application/       Use-Case-Services + Ports (Contract/). Orchestrieren die
+│                      Domain; hängen nur von Schnittstellen ab, nie von Adaptern.
+├── Infrastructure/    Framework-neutrale Adapter: JSON-Repositories, flock,
+│                      Uhr, Pfade, der (in Phase 1 verweigernde) Command-Executor.
+├── Typo3/             TYPO3-spezifische Adapter. Der EINZIGE Code, der
+│                      Environment, BE_USER, TYPO3-Logging, Scheduler, Mailer berührt.
+└── Controller/Backend/ Backend-Rand: wandelt einen Request in Service-Aufrufe
+                        und eine Fluid-Antwort um. Keine Geschäftslogik.
 ```
 
-Dependency direction is strictly inward: `Controller → Application → Domain`,
-with `Infrastructure` and `Typo3` implementing Application ports and wired only
-in `Configuration/Services.yaml`. The Domain depends on nothing.
+Die Abhängigkeitsrichtung verläuft strikt nach innen: `Controller → Application
+→ Domain`, wobei `Infrastructure` und `Typo3` Application-Ports implementieren
+und ausschließlich in `Configuration/Services.yaml` verdrahtet werden. Die
+Domain hängt von nichts ab.
 
-## The ports (CMS/OS seams)
+## Die Ports (CMS-/OS-Nahtstellen)
 
-Defined in `Classes/Application/Contract/` (plus `Domain/Clock/ClockInterface`).
-Names refine the ones requested in the brief; the mapping is:
+Definiert in `Classes/Application/Contract/` (plus `Domain/Clock/ClockInterface`).
+Die Namen verfeinern die im Briefing angeforderten; die Zuordnung lautet:
 
-| Requested interface | This project | Phase-1 adapter |
+| Angeforderte Schnittstelle | Dieses Projekt | Phase-1-Adapter |
 |---|---|---|
 | `BackendAuthorizationInterface` | `BackendAuthorizationInterface` | `Typo3\Authorization\BackendUserAuthorization` |
-| `CacheManagerInterface` | `CacheManagerInterface` | *(interface only — update phase)* |
-| `MaintenanceModeInterface` | `MaintenanceModeInterface` | *(interface only — restore phase)* |
-| `DatabaseSchemaUpdaterInterface` | `DatabaseSchemaUpdaterInterface` | *(interface only — update phase)* |
+| `CacheManagerInterface` | `CacheManagerInterface` | *(nur Schnittstelle — Update-Phase)* |
+| `MaintenanceModeInterface` | `MaintenanceModeInterface` | *(nur Schnittstelle — Restore-Phase)* |
+| `DatabaseSchemaUpdaterInterface` | `DatabaseSchemaUpdaterInterface` | *(nur Schnittstelle — Update-Phase)* |
 | `SystemLoggerInterface` | `SystemLoggerInterface` | `Typo3\Logging\Typo3SystemLogger` |
-| `CommandExecutorInterface` | `CommandExecutorInterface` | `Infrastructure\Process\UnavailableCommandExecutor` (refuses) |
+| `CommandExecutorInterface` | `CommandExecutorInterface` | `Infrastructure\Process\UnavailableCommandExecutor` (verweigert) |
 | `ProjectEnvironmentInterface` | `ProjectEnvironmentInterface` | `Typo3\Environment\Typo3ProjectEnvironment` |
-| `MailerInterface` | `MailerInterface` | *(interface only — notifications phase)* |
+| `MailerInterface` | `MailerInterface` | *(nur Schnittstelle — Benachrichtigungs-Phase)* |
 | `SchedulerIntegrationInterface` | `SchedulerIntegrationInterface` | `Typo3\Scheduler\Typo3SchedulerIntegration` |
 
-Supporting ports added for a clean Phase 1: `WorkingDirectoryProviderInterface`,
-`LockInterface` / `LockFactoryInterface`, `RuntimeConfigurationRepositoryInterface`,
-`ScheduleRepositoryInterface`, and the ports backing entitlement state.
+Unterstützende Ports, hinzugefügt für eine saubere Phase 1:
+`WorkingDirectoryProviderInterface`, `LockInterface` / `LockFactoryInterface`,
+`RuntimeConfigurationRepositoryInterface`, `ScheduleRepositoryInterface` sowie
+die Ports, die den Berechtigungszustand tragen.
 
-Interfaces with no Phase-1 adapter are intentional: the seam is fixed now so the
-later destructive pipelines depend on the abstraction, but no destructive
-implementation ships yet. The command executor DOES ship an adapter — one that
-throws `NotImplementedException` rather than ever silently succeeding.
+Schnittstellen ohne Phase-1-Adapter sind beabsichtigt: Die Nahtstelle wird
+bereits jetzt festgelegt, damit die späteren destruktiven Pipelines von der
+Abstraktion abhängen, aber es wird noch keine destruktive Implementierung
+ausgeliefert. Der Command-Executor liefert dagegen einen Adapter — einen, der
+eine `NotImplementedException` wirft, statt jemals stillschweigend
+erfolgreich zu sein.
 
-## Domain contents
+## Inhalt der Domain
 
-Pure value objects and services, all with `declare(strict_types=1)` and, where
-they carry state, immutable:
+Reine Value Objects und Services, alle mit `declare(strict_types=1)` und, wo
+sie Zustand tragen, unveränderlich (immutable):
 
-- **Configuration**: `RuntimeConfiguration` (validated, immutable).
-- **Schedule**: `ScheduleFrequency`, `BackupSchedule`, `ScheduleRun`, and the pure
-  `ScheduleEvaluator` (ported near-verbatim from Contao; time passed in).
-- **Entitlement**: value objects describing the licence tier, the host binding
-  and the validity rules. Entitlement internals are intentionally not detailed in
-  this document.
-- **Job**: `JobStatus`/`JobType`/`UpdateMode` enums and the immutable `Job` with a
-  guarded state machine (`JobStatus::canTransitionTo`).
-- **Process**: `CommandRequest` (argv-only, shell-impossible) and `CommandResult`.
-- **Archive**: `ArchiveEntryValidator` (zip/tar-slip guard).
-- **Filesystem**: `PathNormalizer` (lexical, symlink-agnostic containment).
+- **Configuration**: `RuntimeConfiguration` (validiert, unveränderlich).
+- **Schedule**: `ScheduleFrequency`, `BackupSchedule`, `ScheduleRun` sowie der
+  reine `ScheduleEvaluator` (nahezu wortgetreu aus Contao portiert; Zeit wird
+  übergeben).
+- **Entitlement**: Value Objects, die die Lizenzstufe, die Host-Bindung und die
+  Gültigkeitsregeln beschreiben. Die internen Details von Entitlement werden in
+  diesem Dokument absichtlich nicht ausgeführt.
+- **Job**: die Enums `JobStatus`/`JobType`/`UpdateMode` sowie das unveränderliche
+  `Job` mit einer abgesicherten Zustandsmaschine (`JobStatus::canTransitionTo`).
+- **Process**: `CommandRequest` (nur argv, shell-unmöglich) und `CommandResult`.
+- **Archive**: `ArchiveEntryValidator` (Zip-/Tar-Slip-Schutz).
+- **Filesystem**: `PathNormalizer` (lexikalisch, symlink-unabhängige
+  Eingrenzung).
 - **Clock**: `ClockInterface`.
-- **Exception**: `GuardianException`, `NotImplementedException`, `InvalidConfigurationException`.
+- **Exception**: `GuardianException`, `NotImplementedException`,
+  `InvalidConfigurationException`.
 
-## Application contents
+## Inhalt der Application
 
-- `Configuration\RuntimeConfigurationService` — read config.
-- `Environment\EnvironmentInspector` — build `EnvironmentCapabilities` (no exec).
-- Entitlement services — activation, refresh, removal, evaluation, and the gate
-  asserted at each protected feature boundary. These are distributed through the
-  layers above rather than concentrated in one place, and are not enumerated
-  here.
-- `Schedule\ScheduleForecastService` + `ScheduleForecast` — read-only "due/next".
-- `Dashboard\DashboardService` — aggregate read model for the module.
+- `Configuration\RuntimeConfigurationService` — Konfiguration lesen.
+- `Environment\EnvironmentInspector` — baut `EnvironmentCapabilities` auf (kein
+  exec).
+- Entitlement-Services — Aktivierung, Aktualisierung, Entfernung, Auswertung
+  sowie das an jeder geschützten Funktionsgrenze geprüfte Gate. Diese sind über
+  die obigen Schichten verteilt statt an einer Stelle konzentriert und werden
+  hier nicht einzeln aufgeführt.
+- `Schedule\ScheduleForecastService` + `ScheduleForecast` — schreibgeschütztes
+  „fällig/nächster Termin“.
+- `Dashboard\DashboardService` — aggregiertes Lesemodell für das Modul.
 
-## Backend UI
+## Backend-UI
 
-One backend module (`guardian`, under *System*, `access: admin`). The controller
-`Controller\Backend\GuardianModuleController::handleRequest` validates an `action`
-query parameter against a fixed allowlist and renders one Fluid template per
-section. The 176 KB monolithic Contao Twig template is replaced by:
+Ein Backend-Modul (`guardian`, unter *System*, `access: admin`). Der Controller
+`Controller\Backend\GuardianModuleController::handleRequest` validiert einen
+`action`-Query-Parameter gegen eine feste Positivliste (Allowlist) und rendert
+pro Abschnitt genau ein Fluid-Template. Das 176 KB große monolithische
+Contao-Twig-Template wird ersetzt durch:
 
 ```
 Resources/Private/
-├── Templates/Guardian/Index.html   the product module: shell + tab panels
+├── Templates/Guardian/Index.html   das Produktmodul: Shell + Tab-Panels
 ├── Partials/Guardian/              Dashboard, Update, Backup, Recovery,
 │                                   Extensions, Settings, Tabs
 Resources/Public/
-├── Css/guardian.css                theme-aware, scoped
-└── JavaScript/guardian.js          the product module's script
+├── Css/guardian.css                theme-fähig, gescoped
+└── JavaScript/guardian.js          das Skript des Produktmoduls
 ```
 
-The shared V-T.ONE licence screen has its own template, partial and script
-alongside these.
+Der gemeinsam genutzte V-T.ONE-Lizenzbildschirm hat daneben sein eigenes
+Template, Partial und Skript.
 
-No inline JavaScript. Entitlement state is rendered by the server in both places,
-so neither screen depends on a request completing to show what is stored.
+Kein Inline-JavaScript. Der Berechtigungszustand wird an beiden Stellen
+serverseitig gerendert, sodass kein Bildschirm davon abhängt, dass ein Request
+abgeschlossen wird, um den gespeicherten Zustand anzuzeigen.
 
-Licence controls exist **only** on the shared screen under *System → VTOne
-Licensing*. The product module has no licence panel, no licence endpoints in its
-endpoint map and no licence code in its script; its Settings tab links to the
-shared screen.
+Lizenzsteuerungen existieren **ausschließlich** auf dem gemeinsamen Bildschirm
+unter *System → VTOne Licensing*. Das Produktmodul hat kein Lizenzpanel, keine
+Lizenz-Endpunkte in seiner Endpunkt-Zuordnung und keinen Lizenzcode in seinem
+Skript; sein Settings-Tab verlinkt auf den gemeinsamen Bildschirm.
 
-## What stays conceptually similar vs. what is redesigned
+## Was konzeptionell ähnlich bleibt vs. was neu entworfen wurde
 
-**Conceptually similar (ported/adapted):**
-- `ScheduleEvaluator` — logic essentially unchanged.
-- `BackupLock` → `FlockLock` — same flock + stale-reclaim behaviour.
-- Runtime-config validation, job lifecycle, archive safety, path containment and
-  secret redaction — rules preserved, repackaged.
+**Konzeptionell ähnlich (portiert/angepasst):**
+- `ScheduleEvaluator` — Logik im Wesentlichen unverändert.
+- `BackupLock` → `FlockLock` — gleiches Verhalten bei flock + Wiederaufnahme
+  veralteter Locks.
+- Validierung der Laufzeitkonfiguration, Job-Lebenszyklus, Archiv-Sicherheit,
+  Pfad-Eingrenzung und Schwärzung von Geheimnissen — Regeln erhalten, neu
+  verpackt.
 
-**Fully redesigned:**
-- Backend UI (Twig monolith → Fluid + external assets).
-- Authorization & audit logging (Contao Security/`tl_log` → ports + TYPO3 adapters).
-- Job worker & command execution (Symfony Process/`exec`/`shell_exec` scattered
-  across steps → single `CommandExecutorInterface` seam, shell-free `CommandRequest`).
-- Backup/restore (Contao/Symfony tree + `contao-console` → TYPO3 layout + core APIs).
-- Cache/maintenance/migration (`contao-console` calls → dedicated ports).
-- Scheduling trigger (Contao Cron hook → TYPO3 Scheduler/crontab).
-- Recovery panel (rebuilt as a separate, later, security-reviewed deliverable).
+**Vollständig neu entworfen:**
+- Backend-UI (Twig-Monolith → Fluid + externe Assets).
+- Autorisierung & Audit-Logging (Contao Security/`tl_log` → Ports + TYPO3-Adapter).
+- Job-Worker & Befehlsausführung (über Schritte verstreutes Symfony
+  Process/`exec`/`shell_exec` → einzelne `CommandExecutorInterface`-Nahtstelle,
+  shell-freier `CommandRequest`).
+- Backup/Restore (Contao/Symfony-Baum + `contao-console` → TYPO3-Layout +
+  Core-APIs).
+- Cache/Wartung/Migration (`contao-console`-Aufrufe → dedizierte Ports).
+- Zeitplan-Auslöser (Contao-Cron-Hook → TYPO3 Scheduler/Crontab).
+- Recovery-Panel (als separates, späteres, sicherheitsgeprüftes Deliverable neu
+  aufgebaut).
 
-## Wiring
+## Verdrahtung
 
-`Configuration/Services.yaml` uses autowiring/autoconfiguration, excludes the
-pure `Domain/` namespace (re-registering only its three dependency-free services),
-makes the module controller public, and binds every port to its Phase-1 adapter.
+`Configuration/Services.yaml` nutzt Autowiring/Autokonfiguration, schließt den
+reinen `Domain/`-Namespace aus (registriert nur dessen drei
+abhängigkeitsfreie Services erneut), macht den Modul-Controller `public` und
+bindet jeden Port an seinen Phase-1-Adapter.
 
-## TYPO3 13.4 / 14 compatibility
+## Kompatibilität mit TYPO3 13.4 / 14
 
-The extension supports **TYPO3 13.4.9 through 14.x from one shared codebase**.
-The ports-and-adapters design makes this cheap: all TYPO3 API usage is confined to
-the `Typo3/` adapters and the single backend controller, and every TYPO3 API used
-there (the array-based backend-module registration, `ModuleTemplateFactory`,
-`ModuleTemplate::renderResponse()`, `UriBuilder`, `Environment`, backend-user
-globals, `Icons.php`, Symfony DI, and the core Fluid ViewHelpers) is part of the
-identical, stable subset available in both 13.4 and 14. No runtime version checks
-and no version-specific adapters are required in Phase 1. See
-`CompatibilityStrategy.md` and `CompatibilityAudit.md` for the full analysis.
+Die Extension unterstützt **TYPO3 13.4.9 bis 14.x aus einer gemeinsamen
+Codebasis**. Das Ports-and-Adapters-Design macht das kostengünstig: Jede
+TYPO3-API-Nutzung ist auf die `Typo3/`-Adapter und den einzelnen
+Backend-Controller begrenzt, und jede dort verwendete TYPO3-API (die
+array-basierte Backend-Modul-Registrierung, `ModuleTemplateFactory`,
+`ModuleTemplate::renderResponse()`, `UriBuilder`, `Environment`,
+Backend-User-Globals, `Icons.php`, Symfony DI und die Core-Fluid-ViewHelper)
+ist Teil der identischen, stabilen Teilmenge, die sowohl in 13.4 als auch in
+14 verfügbar ist. In Phase 1 sind keine Laufzeit-Versionsprüfungen und keine
+versionsspezifischen Adapter erforderlich. Siehe `CompatibilityStrategy.md`
+und `CompatibilityAudit.md` für die vollständige Analyse.

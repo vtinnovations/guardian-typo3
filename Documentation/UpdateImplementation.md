@@ -1,147 +1,170 @@
-# Update Implementation
+# Update-Implementierung
 
-Guardian's Update tab performs a real, background Composer update of a Composer-mode
-TYPO3 13.4/14 project, with a mandatory safety backup, maintenance mode, database
-schema update, cache flush, verification and rollback — reusing Guardian's existing
-Backup, Recovery, Job, Lock, License, Logging, Runtime-Configuration and
-Notification subsystems. There is **one** update workflow and **no** duplicate
-restore engine.
+Guardians Update-Tab führt ein echtes, im Hintergrund laufendes
+Composer-Update eines Composer-Modus-TYPO3-13.4/14-Projekts durch, mit
+verpflichtendem Sicherheits-Backup, Wartungsmodus, Datenbankschema-Update,
+Cache-Leerung, Verifizierung und Rollback — unter Wiederverwendung von
+Guardians bestehenden Subsystemen für Backup, Recovery, Job, Lock, Lizenz,
+Logging, Laufzeitkonfiguration und Benachrichtigung. Es gibt **einen**
+Update-Workflow und **keine** doppelte Restore-Engine.
 
-## Flow
+## Ablauf
 
 ```
-Backend (AJAX, admin + Pro)                 CLI worker (guardian:update:run <id>)
+Backend (AJAX, Admin + Pro)                 CLI-Worker (guardian:update:run <id>)
 ──────────────────────────                  ───────────────────────────────────
-analyse ─ PreUpdateAnalysis (read-only)
+analyse ─ PreUpdateAnalysis (schreibgeschützt)
 updateCheck ─ composer outdated (JSON)
 updateDryRun ─┐                             UpdateJobRunner:
 updateStart ──┴─ UpdateService.create()      1 safety_backup   (BackupService)
-   → validate + store job (queued)           2 maintenance_on  (MaintenanceMode)
-   → reset log                               3 composer         (Symfony Process, argv)
-   → spawn detached worker ───────────────▶  4 database_schema  (typo3 database:updateschema)
-updateJobStatus / updateJobLog (poll)        5 cache_clear      (typo3 cache:flush)
-updateJobs / updateJobDetails                6 verify           (composer.json/lock, autoload, version)
-updateRollback ─ RestoreService              7 maintenance_off  (restore prior state)
+   → validieren + Job speichern (queued)     2 maintenance_on  (MaintenanceMode)
+   → Log zurücksetzen                        3 composer         (Symfony Process, argv)
+   → abgekoppelten Worker starten ───────▶   4 database_schema  (typo3 database:updateschema)
+updateJobStatus / updateJobLog (Polling)     5 cache_clear      (typo3 cache:flush)
+updateJobs / updateJobDetails                6 verify           (composer.json/lock, autoload, Version)
+updateRollback ─ RestoreService              7 maintenance_off  (vorherigen Zustand wiederherstellen)
 ```
 
-The browser only *starts* a job and polls; a long update never runs inside a web
-request.
+Der Browser *startet* einen Job nur und pollt; ein langes Update läuft
+niemals innerhalb eines Web-Requests.
 
-## Update modes and exact Composer commands
+## Update-Modi und exakte Composer-Befehle
 
-Composer is always invoked as `<php-cli> <composer.phar> …` (never a shell
-wrapper) so its platform checks match the site runtime. Baseline flags `[B]` =
-`--no-interaction --no-progress --no-scripts` (post-update scripts are replaced by
-the explicit schema + cache steps).
+Composer wird immer als `<php-cli> <composer.phar> …` aufgerufen (niemals ein
+Shell-Wrapper), damit dessen Plattformprüfungen zur Runtime der Site passen.
+Basis-Flags `[B]` = `--no-interaction --no-progress --no-scripts`
+(Post-Update-Scripts werden durch die expliziten Schema- + Cache-Schritte
+ersetzt).
 
-| Mode | Command | Rationale |
+| Modus | Befehl | Begründung |
 | --- | --- | --- |
-| **Full** | `composer update [B] --with-all-dependencies` | Update everything allowed by `composer.json`, including transitive deps. |
-| **Conservative** | `composer update [B] --prefer-stable` | **No** `--with-all-dependencies`, so Composer avoids moving transitive dependencies — genuinely minimal movement, not a relabelled full update. |
-| **Selective** | `composer update <pkg…> [B] --with-dependencies` | Only the chosen (server-validated) packages plus their own dependencies. |
-| **Dry run** | the selected mode's command **+ `--dry-run`** | Resolves and reports planned changes; touches nothing. |
+| **Vollständig** | `composer update [B] --with-all-dependencies` | Alles aktualisieren, was `composer.json` erlaubt, einschließlich transitiver Abhängigkeiten. |
+| **Konservativ** | `composer update [B] --prefer-stable` | **Kein** `--with-all-dependencies`, sodass Composer die Bewegung transitiver Abhängigkeiten vermeidet — echte minimale Bewegung, kein umetikettiertes vollständiges Update. |
+| **Selektiv** | `composer update <pkg…> [B] --with-dependencies` | Nur die gewählten (serverseitig validierten) Pakete plus deren eigene Abhängigkeiten. |
+| **Probelauf** | der Befehl des gewählten Modus **+ `--dry-run`** | Löst auf und meldet geplante Änderungen; ändert nichts. |
 
-`--ignore-platform-req=ext-*` flags are added only for extensions the project
-requires but the CLI runtime lacks, and each flag is re-validated against
-`^--ignore-platform-req=ext-[a-z0-9_]+$` before use. Command construction lives in
-the pure, unit-tested `ComposerCommandFactory`; package names are validated by
-`PackageName` (Composer syntax, no leading dash) so browser input can never inject
-a flag or shell fragment. Every command is an argv array executed with **no
-shell** by `SymfonyProcessCommandExecutor`.
+`--ignore-platform-req=ext-*`-Flags werden nur für Extensions hinzugefügt, die
+das Projekt benötigt, die der CLI-Runtime aber fehlen, und jedes Flag wird vor
+der Verwendung erneut gegen `^--ignore-platform-req=ext-[a-z0-9_]+$`
+validiert. Die Befehlskonstruktion liegt in der reinen, unit-getesteten
+`ComposerCommandFactory`; Paketnamen werden von `PackageName` validiert
+(Composer-Syntax, kein führender Bindestrich), sodass eine
+Browser-Eingabe niemals ein Flag oder ein Shell-Fragment einschleusen kann.
+Jeder Befehl ist ein argv-Array, das **ohne Shell** von
+`SymfonyProcessCommandExecutor` ausgeführt wird.
 
-## Online update check
+## Online-Update-Prüfung
 
-`PackageUpdateChecker` runs `composer outdated --direct --no-interaction
---format=json`, merges the result onto `vendor/composer/installed.json`, and
-classifies each package with a language-neutral `PackageStatus`
-(`current`, `patch_available`, `minor_available`, `major_available`, `abandoned`,
-`unknown`, `error`). It is read-only. Failures are classified
-(`network_error`, `auth_error`, `repository_error`, `resolution_error`,
-`composer_unavailable`, …) and never expose credentials or tokens.
+`PackageUpdateChecker` führt `composer outdated --direct --no-interaction
+--format=json` aus, führt das Ergebnis mit
+`vendor/composer/installed.json` zusammen und klassifiziert jedes Paket mit
+einem sprachneutralen `PackageStatus` (`current`, `patch_available`,
+`minor_available`, `major_available`, `abandoned`, `unknown`, `error`). Es ist
+schreibgeschützt. Fehlschläge werden klassifiziert (`network_error`,
+`auth_error`, `repository_error`, `resolution_error`,
+`composer_unavailable`, …) und legen niemals Zugangsdaten oder Tokens offen.
 
-## Safety backup (mandatory)
+## Sicherheits-Backup (verpflichtend)
 
-Step 1 reuses `BackupService::create()` to snapshot composer files + database +
-configuration + local packages + templates (+ `vendor/` when selected). If it
-fails, the runner aborts **before** enabling maintenance or running Composer. The
-snapshot ID is stored on the job for rollback.
+Schritt 1 nutzt `BackupService::create()` erneut, um Composer-Dateien +
+Datenbank + Konfiguration + lokale Pakete + Templates (+ `vendor/`, falls
+ausgewählt) zu sichern. Schlägt dies fehl, bricht der Runner ab, **bevor**
+der Wartungsmodus aktiviert oder Composer ausgeführt wird. Die Snapshot-ID
+wird für den Rollback auf dem Job gespeichert.
 
-## Maintenance, schema, cache (TYPO3 13.4 + 14)
+## Wartung, Schema, Cache (TYPO3 13.4 + 14)
 
-- Maintenance uses the shared `MaintenanceModeInterface`; the previous state is
-  detected and restored afterwards. On failure it is kept ON during rollback.
-- Schema: `vendor/bin/typo3 database:updateschema "*.add,*.change" --no-interaction`
-  — additive/safe changes only; destructive changes are never auto-applied.
-- Cache: `vendor/bin/typo3 cache:flush`. Both commands are stable on 13.4 and 14;
-  `Typo3ConsoleCommands` is the single adapter to change if that ever differs.
-  Cache-clear failure is a **warning**, not a hard failure.
+- Die Wartung nutzt die gemeinsame `MaintenanceModeInterface`; der vorherige
+  Zustand wird erkannt und anschließend wiederhergestellt. Bei einem
+  Fehlschlag bleibt sie während des Rollbacks EIN.
+- Schema: `vendor/bin/typo3 database:updateschema "*.add,*.change"
+  --no-interaction` — nur additive/sichere Änderungen; destruktive Änderungen
+  werden niemals automatisch angewendet.
+- Cache: `vendor/bin/typo3 cache:flush`. Beide Befehle sind in 13.4 und 14
+  stabil; `Typo3ConsoleCommands` ist der einzige Adapter, der zu ändern wäre,
+  sollte sich das jemals unterscheiden. Ein Fehlschlag beim Cache-Leeren ist
+  eine **Warnung**, kein harter Fehlschlag.
 
-## Verification, failure handling, rollback
+## Verifizierung, Fehlerbehandlung, Rollback
 
-Verification checks `composer.json`/`composer.lock` are valid JSON,
-`vendor/autoload.php` exists and the TYPO3 version is detectable. On any failure
-after Composer may have changed the tree, the runner keeps maintenance ON and
-calls the **shared** `RestoreService` to roll back from the safety snapshot
-(`createSnapshot=false`), then restores the previous maintenance state only if
-rollback succeeded. If `vendor/` was not in the snapshot, the log explains a
-controlled `composer install` may be needed to match the restored lock file.
-Failures carry stable codes (`start_failed`, `not_confirmed`, `rollback_failed`,
-plus the online-check error codes).
+Die Verifizierung prüft, dass `composer.json`/`composer.lock` gültiges JSON
+sind, dass `vendor/autoload.php` existiert und dass die TYPO3-Version
+erkennbar ist. Bei jedem Fehlschlag, nachdem Composer den Baum möglicherweise
+verändert hat, hält der Runner die Wartung EIN und ruft den **gemeinsamen**
+`RestoreService` auf, um aus dem Sicherheits-Snapshot zurückzurollen
+(`createSnapshot=false`), und stellt den vorherigen Wartungszustand nur dann
+wieder her, wenn der Rollback erfolgreich war. War `vendor/` nicht im
+Snapshot enthalten, erklärt das Log, dass ein kontrolliertes
+`composer install` nötig sein könnte, um die wiederhergestellte
+Lock-Datei zu erfüllen. Fehlschläge tragen stabile Codes (`start_failed`,
+`not_confirmed`, `rollback_failed`, plus die Fehlercodes der
+Online-Prüfung).
 
-## Jobs, progress, logs
+## Jobs, Fortschritt, Logs
 
-`UpdateJobStore` persists a single active job (`var/guardian/update/job.json`) and
-an archive (`var/guardian/update/jobs/<id>.json`). `UpdateJobLog` is an
-append-only, offset-readable JSON-line log with the audited secret-redaction
-patterns (passwords, `-p…`, tokens, DSN credentials). The browser polls status +
-log by byte offset and resumes polling after a reload.
+`UpdateJobStore` persistiert einen einzelnen aktiven Job
+(`var/guardian/update/job.json`) sowie ein Archiv
+(`var/guardian/update/jobs/<id>.json`). `UpdateJobLog` ist ein
+Append-only-JSON-Zeilen-Log mit Offset-Lesezugriff und den geprüften
+Mustern zur Schwärzung von Geheimnissen (Passwörter, `-p…`, Tokens,
+DSN-Zugangsdaten). Der Browser pollt Status + Log per Byte-Offset und setzt
+das Polling nach einem Reload fort.
 
-## Locking / concurrency
+## Sperren / Nebenläufigkeit
 
-Only one active update job is allowed (store-enforced; stale jobs are reaped). The
-worker's `BackupService` and `RestoreService` acquire their own operation locks,
-so backup/recovery cannot interleave with an update's snapshot/rollback.
+Nur ein aktiver Update-Job ist erlaubt (durch den Store erzwungen; veraltete
+Jobs werden bereinigt). Der `BackupService` und `RestoreService` des Workers
+erwerben ihre eigenen Operationssperren, sodass sich Backup/Recovery nicht mit
+dem Snapshot/Rollback eines Updates überschneiden können.
 
-## Security
+## Sicherheit
 
-Admin + Pro + TYPO3 request token on every endpoint; POST for state changes;
-package-name validation; argv-only execution (no `exec`/`shell_exec`/backticks/
-concatenation) except the one detached-worker launcher, which interpolates only a
-strict `YYYYMMDD-HHMMSS-xxxxxxxx` job id; timeout + idle-timeout on every process;
-secret redaction in logs; no credentials or stack traces in JSON; mandatory safety
-backup; maintenance preservation; no fake success.
+Administrator + Pro + TYPO3-Request-Token bei jedem Endpunkt; POST für
+Zustandsänderungen; Paketnamen-Validierung; nur argv-Ausführung (kein
+`exec`/`shell_exec`/Backticks/Konkatenation) außer beim einzigen Starter des
+abgekoppelten Workers, der ausschließlich eine strikte
+`YYYYMMDD-HHMMSS-xxxxxxxx`-Job-ID interpoliert; Timeout + Idle-Timeout bei
+jedem Prozess; Schwärzung von Geheimnissen in Logs; keine Zugangsdaten oder
+Stacktraces in JSON; verpflichtendes Sicherheits-Backup; Erhalt des
+Wartungszustands; kein vorgetäuschter Erfolg.
 
-## Deployment / operations
+## Deployment / Betrieb
 
 ```bash
 composer dumpautoload
-vendor/bin/typo3 cache:flush           # rebuild DI container after Services.yaml change
+vendor/bin/typo3 cache:flush           # DI-Container nach Änderung an Services.yaml neu aufbauen
 ```
 
-Requirements on the server:
-- Composer-mode TYPO3 project with a writable `vendor/` and `var/`.
-- A real `composer.phar` (project root or a configured path) — a shell-wrapper
-  `composer` is intentionally not used.
-- A PHP **CLI** binary (configured in Guardian settings or auto-detected).
-- `proc_open` enabled (Symfony Process). Run the worker/site as the project owner,
-  **not** root.
+Anforderungen auf dem Server:
+- Composer-Modus-TYPO3-Projekt mit beschreibbarem `vendor/` und `var/`.
+- Eine echte `composer.phar` (Projekt-Root oder ein konfigurierter Pfad) —
+  ein Shell-Wrapper-`composer` wird absichtlich nicht verwendet.
+- Eine PHP-**CLI**-Binärdatei (konfiguriert in den Guardian-Einstellungen
+  oder automatisch erkannt).
+- `proc_open` aktiviert (Symfony Process). Den Worker/die Site als
+  Projektbesitzer ausführen, **nicht** als root.
 
-## Manual runtime test
+## Manueller Laufzeittest
 
-1. Guardian → Update → **Run analysis** (no blocking errors).
-2. **Check online** → statuses populate; **Reload packages** works.
-3. **Dry run** → job runs, log streams planned changes, nothing changes on disk.
-4. **Start update** (tick confirm) → safety backup → maintenance → composer →
-   schema → cache → verify → back online; progress + steps + log update live.
-5. Reload the page mid-run → polling resumes.
-6. **Recent update jobs** lists the finished job.
-7. Force a failure (e.g. an impossible selective set) → precise error; if the tree
-   changed, rollback runs and maintenance is handled; **Roll back** offered for a
-   failed job with a snapshot.
+1. Guardian → Update → **Analyse ausführen** (keine blockierenden Fehler).
+2. **Online prüfen** → Status werden befüllt; **Pakete neu laden**
+   funktioniert.
+3. **Probelauf** → Job läuft, Log streamt geplante Änderungen, nichts ändert
+   sich auf dem Datenträger.
+4. **Update starten** (Bestätigung ankreuzen) → Sicherheits-Backup →
+   Wartung → Composer → Schema → Cache → Verifizierung → wieder online;
+   Fortschritt + Schritte + Log aktualisieren sich live.
+5. Seite während des Laufs neu laden → Polling wird fortgesetzt.
+6. **Letzte Update-Jobs** listet den abgeschlossenen Job.
+7. Einen Fehlschlag erzwingen (z. B. eine unmögliche selektive Auswahl) →
+   präzise Fehlermeldung; hat sich der Baum verändert, läuft der Rollback
+   und die Wartung wird behandelt; **Zurückrollen** wird für einen
+   fehlgeschlagenen Job mit Snapshot angeboten.
 
-## Limitations
+## Einschränkungen
 
-- Rollback without `vendor/` in the snapshot restores composer files + DB +
-  config but may require a controlled `composer install` to rebuild `vendor/`.
-- The database schema step applies only additive/safe changes; destructive schema
-  changes must be reviewed and applied manually.
+- Ein Rollback ohne `vendor/` im Snapshot stellt Composer-Dateien + DB +
+  Konfiguration wieder her, benötigt aber unter Umständen ein kontrolliertes
+  `composer install`, um `vendor/` neu aufzubauen.
+- Der Datenbankschema-Schritt wendet nur additive/sichere Änderungen an;
+  destruktive Schemaänderungen müssen manuell geprüft und angewendet werden.

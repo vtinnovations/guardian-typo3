@@ -1,77 +1,91 @@
-# Compatibility Audit — TYPO3 13.4.9 ↔ TYPO3 14
+# Kompatibilitätsaudit — TYPO3 13.4.9 ↔ TYPO3 14
 
-Static audit of every TYPO3-touching usage in the extension, checked for
-availability in **TYPO3 13.4.9** (minimum supported) and **TYPO3 14.x**. The
-extension's ports-and-adapters design confines all TYPO3 API usage to the
-`Typo3/` adapters, the single backend controller, and the `Configuration/` +
-`Resources/` files — so the audit surface is small.
+Statisches Audit jeder TYPO3-berührenden Nutzung in der Extension, geprüft auf
+Verfügbarkeit in **TYPO3 13.4.9** (Mindestversion) und **TYPO3 14.x**. Das
+Ports-and-Adapters-Design der Extension begrenzt jede TYPO3-API-Nutzung auf die
+`Typo3/`-Adapter, den einzelnen Backend-Controller sowie die Dateien unter
+`Configuration/` + `Resources/` — die Audit-Oberfläche ist daher klein.
 
-> Method: reviewed each import and call against the TYPO3 13.4 and 14 public API
-> (the array-based backend-module API and `ModuleTemplate::renderResponse()`
-> both date from the v12.0 "new backend module API" and are unchanged through
-> 13.4 and 14; PSR-7, DI, Icons, `Environment`, and the core Fluid ViewHelpers
-> used here are long-stable). No API used is newer than TYPO3 v12.0, so all are
-> present in 13.4.9. **No runtime/PHP verification was possible in this
-> environment** — see "Runtime checks still required".
+> Methode: Jeder Import und Aufruf wurde gegen die öffentliche TYPO3-13.4- und
+> -14-API geprüft (die array-basierte Backend-Modul-API und
+> `ModuleTemplate::renderResponse()` stammen beide aus der v12.0-„neuen
+> Backend-Modul-API“ und sind über 13.4 und 14 hinweg unverändert; PSR-7, DI,
+> Icons, `Environment` und die hier verwendeten Core-Fluid-ViewHelper sind
+> langfristig stabil. Keine verwendete API ist neuer als TYPO3 v12.0, sodass
+> alle bereits in 13.4.9 vorhanden sind. **In dieser Umgebung war keine
+> Laufzeit-/PHP-Verifikation möglich** — siehe „Noch erforderliche
+> Laufzeitprüfungen“.
 
-## Result summary
+## Ergebniszusammenfassung
 
-- **TYPO3 14-only APIs found: none.**
-- **One shared implementation is possible for every usage.**
-- **Version-specific adapters required: none** (the existing `Typo3/` adapters
-  isolate the CMS from the domain, not one TYPO3 version from another).
-- Changes actually required to add 13.4.9 support: **Composer constraints only**,
-  plus a defensive change to the backend-module `position` (see the table).
+- **Nur-TYPO3-14-APIs gefunden: keine.**
+- **Für jede Nutzung ist eine gemeinsame Implementierung möglich.**
+- **Erforderliche versionsspezifische Adapter: keine** (die vorhandenen
+  `Typo3/`-Adapter isolieren das CMS von der Domain, nicht eine
+  TYPO3-Version von einer anderen).
+- Tatsächlich für die Unterstützung von 13.4.9 erforderliche Änderungen: **nur
+  Composer-Constraints**, plus eine defensive Änderung an der `position` des
+  Backend-Moduls (siehe Tabelle).
 
-## Per-usage audit
+## Audit je Verwendung
 
-| File / class | API used | 13.4.9 | 14.x | Shared? | Required modification |
+| Datei / Klasse | Verwendete API | 13.4.9 | 14.x | Gemeinsam? | Erforderliche Änderung |
 |---|---|:--:|:--:|:--:|---|
-| `Configuration/Backend/Modules.php` | array module registration (`parent`, `access`, `routes/_default/target`, `iconIdentifier`, `path`, `labels`) | ✅ (v12+) | ✅ | yes | none (API identical) |
-| `Configuration/Backend/Modules.php` | `parent => 'system'` group | ✅ | ✅ | yes | none — `system` group exists in both |
-| `Configuration/Backend/Modules.php` | `position => ['after' => 'system_BackendUserManagement']` | ⚠️ | ⚠️ | n/a | **changed** to `['bottom']` — a sibling module identifier is not guaranteed identical across 13.4/14; version-neutral hint used instead |
-| `Configuration/Backend/Modules.php` | `labels` → XLF with `mlang_tabs_tab`/`mlang_labels_tablabel`/`mlang_labels_tabdescr` | ✅ | ✅ | yes | none — legacy label trio still resolved in both |
-| `Configuration/Icons.php` | return array + `SvgIconProvider` | ✅ (v11+) | ✅ | yes | none |
-| `Configuration/Services.yaml` | `_defaults` autowire/autoconfigure, `resource`/`exclude`, interface `alias`, `public` | ✅ | ✅ | yes | none — no v14-only DI keys |
-| `Controller/Backend/GuardianModuleController` | `ModuleTemplateFactory::create($request)` | ✅ | ✅ | yes | none |
-| `Controller/Backend/GuardianModuleController` | `ModuleTemplate::setTitle(string, string)` | ✅ | ✅ | yes | none |
-| `Controller/Backend/GuardianModuleController` | `ModuleTemplate::assign()` / `assignMultiple()` | ✅ | ✅ | yes | none |
-| `Controller/Backend/GuardianModuleController` | `ModuleTemplate::renderResponse(string): ResponseInterface` | ✅ (v12.0+) | ✅ | yes | none — **not** a v14-only method |
-| `Controller/Backend/GuardianModuleController` | `UriBuilder::buildUriFromRoute(string, array)` (constructor-injected) | ✅ | ✅ | yes | none |
-| `Controller/Backend/GuardianModuleController` | PSR-7 `ServerRequestInterface::getQueryParams()`, `ResponseInterface` return | ✅ | ✅ | yes | none — PSR-7 identical |
-| `Typo3/Environment/Typo3ProjectEnvironment` | `Environment::getProjectPath/getVarPath/getPublicPath/isComposerMode()` | ✅ | ✅ | yes | none |
-| `Typo3/Authorization/BackendUserAuthorization` | `$GLOBALS['BE_USER']`, `BackendUserAuthentication::isAdmin()`, `->user['username']` | ✅ | ✅ | yes | none — isolated in adapter (not in domain) |
-| `Typo3/Logging/Typo3SystemLogger` | `Psr\Log\LoggerAwareInterface`/`LoggerAwareTrait` autoconfiguration | ✅ | ✅ | yes | none |
-| `Typo3/Scheduler/Typo3SchedulerIntegration` | `ExtensionManagementUtility::isLoaded()` | ✅ | ✅ | yes | none |
-| `Resources/Private/**/*.html` | Fluid VHs `f:layout`, `f:section`, `f:render`, `f:for`, `f:if/then/else`, `f:translate`, `f:format.date`, `f:comment`, `f:asset.css`, `f:asset.script` | ✅ | ✅ | yes | none — all core ViewHelpers, unchanged |
-| `Resources/Private/**/*.html` | `data-namespace-typo3-fluid="true"` global namespace | ✅ | ✅ | yes | none |
-| `Resources/Public/JavaScript/guardian.js` | plain ES/DOM (no TYPO3 backend import) | ✅ | ✅ | yes | none — no `@typo3/*` or RequireJS import to break |
-| `Resources/Private/Language/*.xlf` | XLIFF 1.0 with `mlang_*` + `section.*` keys | ✅ | ✅ | yes | none |
+| `Configuration/Backend/Modules.php` | array-basierte Modulregistrierung (`parent`, `access`, `routes/_default/target`, `iconIdentifier`, `path`, `labels`) | ✅ (v12+) | ✅ | ja | keine (API identisch) |
+| `Configuration/Backend/Modules.php` | Gruppe `parent => 'system'` | ✅ | ✅ | ja | keine — Gruppe `system` existiert in beiden |
+| `Configuration/Backend/Modules.php` | `position => ['after' => 'system_BackendUserManagement']` | ⚠️ | ⚠️ | n/a | **geändert** zu `['bottom']` — ein Geschwister-Modul-Identifier ist zwischen 13.4/14 nicht garantiert identisch; stattdessen versionsneutraler Hinweis verwendet |
+| `Configuration/Backend/Modules.php` | `labels` → XLF mit `mlang_tabs_tab`/`mlang_labels_tablabel`/`mlang_labels_tabdescr` | ✅ | ✅ | ja | keine — das Legacy-Label-Trio wird in beiden weiterhin aufgelöst |
+| `Configuration/Icons.php` | Rückgabe-Array + `SvgIconProvider` | ✅ (v11+) | ✅ | ja | keine |
+| `Configuration/Services.yaml` | `_defaults` Autowire/Autoconfigure, `resource`/`exclude`, Interface-`alias`, `public` | ✅ | ✅ | ja | keine — keine nur-v14-DI-Schlüssel |
+| `Controller/Backend/GuardianModuleController` | `ModuleTemplateFactory::create($request)` | ✅ | ✅ | ja | keine |
+| `Controller/Backend/GuardianModuleController` | `ModuleTemplate::setTitle(string, string)` | ✅ | ✅ | ja | keine |
+| `Controller/Backend/GuardianModuleController` | `ModuleTemplate::assign()` / `assignMultiple()` | ✅ | ✅ | ja | keine |
+| `Controller/Backend/GuardianModuleController` | `ModuleTemplate::renderResponse(string): ResponseInterface` | ✅ (v12.0+) | ✅ | ja | keine — **keine** nur-v14-Methode |
+| `Controller/Backend/GuardianModuleController` | `UriBuilder::buildUriFromRoute(string, array)` (per Konstruktor injiziert) | ✅ | ✅ | ja | keine |
+| `Controller/Backend/GuardianModuleController` | PSR-7 `ServerRequestInterface::getQueryParams()`, `ResponseInterface`-Rückgabe | ✅ | ✅ | ja | keine — PSR-7 identisch |
+| `Typo3/Environment/Typo3ProjectEnvironment` | `Environment::getProjectPath/getVarPath/getPublicPath/isComposerMode()` | ✅ | ✅ | ja | keine |
+| `Typo3/Authorization/BackendUserAuthorization` | `$GLOBALS['BE_USER']`, `BackendUserAuthentication::isAdmin()`, `->user['username']` | ✅ | ✅ | ja | keine — im Adapter isoliert (nicht in der Domain) |
+| `Typo3/Logging/Typo3SystemLogger` | Autokonfiguration von `Psr\Log\LoggerAwareInterface`/`LoggerAwareTrait` | ✅ | ✅ | ja | keine |
+| `Typo3/Scheduler/Typo3SchedulerIntegration` | `ExtensionManagementUtility::isLoaded()` | ✅ | ✅ | ja | keine |
+| `Resources/Private/**/*.html` | Fluid-ViewHelper `f:layout`, `f:section`, `f:render`, `f:for`, `f:if/then/else`, `f:translate`, `f:format.date`, `f:comment`, `f:asset.css`, `f:asset.script` | ✅ | ✅ | ja | keine — alle Core-ViewHelper, unverändert |
+| `Resources/Private/**/*.html` | globaler Namespace `data-namespace-typo3-fluid="true"` | ✅ | ✅ | ja | keine |
+| `Resources/Public/JavaScript/guardian.js` | reines ES/DOM (kein TYPO3-Backend-Import) | ✅ | ✅ | ja | keine — kein `@typo3/*`- oder RequireJS-Import, der brechen könnte |
+| `Resources/Private/Language/*.xlf` | XLIFF 1.0 mit `mlang_*` + `section.*`-Schlüsseln | ✅ | ✅ | ja | keine |
 
-## Items explicitly checked and found NOT present (good)
+## Explizit geprüft und als NICHT vorhanden befunden (gut)
 
-- **TYPO3 14-only classes / methods / constructor signatures**: none used.
-- **Removed/renamed TYPO3 13 APIs**: none used (nothing depends on an API that
-  13.4 lacks).
-- **Changed PSR-7 request handling**: not affected — only `getQueryParams()`.
-- **Changed backend module API**: the array/`routes` API is the same v12-era API
-  in both; no `BackendViewFactory`-only or v14-only module wiring is used.
-- **Changed Fluid API**: no v14-only ViewHelper or argument used.
-- **Changed JS import paths**: no `@typo3/backend/*` imports exist to differ.
-- **Changed icon registration**: `Configuration/Icons.php` + `SvgIconProvider`
-  identical.
-- **Changed localization syntax**: XLIFF 1.0 unchanged.
-- **Changed service configuration / DI behaviour / PHP attributes**: none
-  version-specific (no `#[AsController]`/`#[AsEventListener]`-style attributes are
-  used yet; wiring is plain YAML).
-- **Changed event classes**: no event listeners registered in Phase 1.
-- **Assumptions about v14 directory structure / package names**: none — paths come
-  from `Environment`, and only `typo3/cms-core` + `typo3/cms-backend` are required.
+- **Nur-TYPO3-14-Klassen / -Methoden / -Konstruktorsignaturen**: keine
+  verwendet.
+- **Entfernte/umbenannte TYPO3-13-APIs**: keine verwendet (nichts hängt von
+  einer API ab, die 13.4 fehlt).
+- **Geänderte PSR-7-Request-Verarbeitung**: nicht betroffen — nur
+  `getQueryParams()` genutzt.
+- **Geänderte Backend-Modul-API**: Die array-/`routes`-API ist in beiden
+  dieselbe API aus der v12-Ära; es wird keine nur `BackendViewFactory`- oder
+  nur-v14-Modulverdrahtung verwendet.
+- **Geänderte Fluid-API**: kein Nur-v14-ViewHelper oder -Argument verwendet.
+- **Geänderte JS-Importpfade**: keine `@typo3/backend/*`-Importe vorhanden, die
+  sich unterscheiden könnten.
+- **Geänderte Icon-Registrierung**: `Configuration/Icons.php` + `SvgIconProvider`
+  identisch.
+- **Geänderte Lokalisierungssyntax**: XLIFF 1.0 unverändert.
+- **Geänderte Service-Konfiguration / DI-Verhalten / PHP-Attribute**: nichts
+  versionsspezifisch (es werden noch keine Attribute im Stil von
+  `#[AsController]`/`#[AsEventListener]` verwendet; die Verdrahtung erfolgt in
+  reinem YAML).
+- **Geänderte Event-Klassen**: In Phase 1 sind keine Event-Listener
+  registriert.
+- **Annahmen über die v14-Verzeichnisstruktur / Paketnamen**: keine — Pfade
+  stammen aus `Environment`, und nur `typo3/cms-core` + `typo3/cms-backend`
+  werden benötigt.
 
-## Runtime checks still required (could not run here)
+## Noch erforderliche Laufzeitprüfungen (hier nicht ausführbar)
 
-1. Install on a real **TYPO3 13.4.9** instance and confirm the module appears
-   under *System* for admins and every section renders (template resolution).
-2. Repeat on **TYPO3 14.x**.
-3. Confirm DI container compiles on both (service aliases + constructor graph).
-4. Confirm the icon, labels and XLF translations resolve on both.
+1. Installation auf einer echten **TYPO3-13.4.9**-Instanz und Bestätigung,
+   dass das Modul für Administratoren unter *System* erscheint und jeder
+   Abschnitt rendert (Template-Auflösung).
+2. Wiederholung auf **TYPO3 14.x**.
+3. Bestätigung, dass der DI-Container in beiden kompiliert (Service-Aliase +
+   Konstruktor-Graph).
+4. Bestätigung, dass Icon, Labels und XLF-Übersetzungen in beiden aufgelöst
+   werden.

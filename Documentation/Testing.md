@@ -1,41 +1,45 @@
-# Testing
+# Tests
 
-Guardian's Phase 1 tests are **CMS-independent unit tests**: they exercise pure
-`Domain/` logic and extend `PHPUnit\Framework\TestCase` directly, so they do
-**not** bootstrap TYPO3 and run identically regardless of TYPO3 13.4 or 14.
+Guardians Phase-1-Tests sind **CMS-unabhängige Unit-Tests**: Sie prüfen reine
+`Domain/`-Logik und erweitern direkt `PHPUnit\Framework\TestCase`, sodass sie
+**kein** TYPO3 bootstrapen und unabhängig von TYPO3 13.4 oder 14 identisch
+laufen.
 
-> ⚠️ These tests have **not** been executed in the environment where the scaffold
-> was produced (no PHP/Composer/TYPO3 runtime is available there). The commands
-> below are what to run in a proper environment. Do not treat them as having
-> passed.
+> ⚠️ Diese Tests wurden in der Umgebung, in der das Grundgerüst erstellt
+> wurde, **nicht** ausgeführt (dort steht keine PHP-/Composer-/
+> TYPO3-Laufzeitumgebung zur Verfügung). Die untenstehenden Befehle sind das,
+> was in einer geeigneten Umgebung auszuführen ist. Betrachten Sie sie nicht
+> als bestanden.
 
-## What is covered (Phase 1)
+## Was abgedeckt ist (Phase 1)
 
-Pure, deterministic logic — the highest-value, framework-free surface:
+Reine, deterministische Logik — die wertvollste, framework-freie Oberfläche:
 
-| Area | Test |
+| Bereich | Test |
 |---|---|
-| Runtime config validation | `Tests/Unit/Domain/Configuration/RuntimeConfigurationTest.php` |
-| Safe path normalisation & containment | `Tests/Unit/Domain/Filesystem/PathNormalizerTest.php` |
-| Schedule due/next-run math | `Tests/Unit/Domain/Schedule/ScheduleEvaluatorTest.php` |
-| Archive traversal (zip/tar-slip) | `Tests/Unit/Domain/Archive/ArchiveEntryValidatorTest.php` |
-| Shell-free command construction | `Tests/Unit/Domain/Process/CommandRequestTest.php` |
-| Job state transitions | `Tests/Unit/Domain/Job/JobTest.php` |
-| Lock behaviour (real temp file) | `Tests/Unit/Infrastructure/Lock/FlockLockTest.php` |
+| Validierung der Laufzeitkonfiguration | `Tests/Unit/Domain/Configuration/RuntimeConfigurationTest.php` |
+| Sichere Pfadnormalisierung & Eingrenzung | `Tests/Unit/Domain/Filesystem/PathNormalizerTest.php` |
+| Zeitplan-Mathematik für fällig/nächster Lauf | `Tests/Unit/Domain/Schedule/ScheduleEvaluatorTest.php` |
+| Archiv-Traversal (Zip-/Tar-Slip) | `Tests/Unit/Domain/Archive/ArchiveEntryValidatorTest.php` |
+| Shell-freie Befehlskonstruktion | `Tests/Unit/Domain/Process/CommandRequestTest.php` |
+| Job-Zustandsübergänge | `Tests/Unit/Domain/Job/JobTest.php` |
+| Lock-Verhalten (echte Temp-Datei) | `Tests/Unit/Infrastructure/Lock/FlockLockTest.php` |
 
-Because these do not depend on TYPO3, a single run validates the logic for both
-supported TYPO3 lines.
+Da diese nicht von TYPO3 abhängen, validiert ein einziger Lauf die Logik für
+beide unterstützten TYPO3-Linien.
 
-The suite also covers entitlement and licence handling, backend wiring, logging
-redaction and the release artefact. Those tests are not itemised here: the table
-above is an orientation aid for contributors working on the operational parts of
-the product, and enumerating the entitlement tests would describe internals this
-documentation deliberately leaves out. `vendor/bin/phpunit` runs everything.
+Die Suite deckt außerdem Berechtigungs- und Lizenzbehandlung,
+Backend-Verdrahtung, Log-Schwärzung und das Release-Artefakt ab. Diese Tests
+werden hier nicht einzeln aufgeführt: Die obige Tabelle ist eine
+Orientierungshilfe für Mitwirkende, die an den operativen Teilen des Produkts
+arbeiten, und eine Auflistung der Berechtigungstests würde interne Details
+beschreiben, die diese Dokumentation absichtlich auslässt.
+`vendor/bin/phpunit` führt alles aus.
 
-## Dependency ranges
+## Abhängigkeitsbereiche
 
-`composer.json` (`require-dev`) intentionally spans both TYPO3 eras so Composer can
-resolve the toolchain that matches the installed core:
+`composer.json` (`require-dev`) umspannt absichtlich beide TYPO3-Ären, damit
+Composer die zum installierten Core passende Toolchain auflösen kann:
 
 ```json
 "require-dev": {
@@ -44,64 +48,72 @@ resolve the toolchain that matches the installed core:
 }
 ```
 
-- `typo3/testing-framework ^8.2.3` covers the TYPO3 13.4 line; `^9.0` covers the
-  TYPO3 14 line. Composer selects the one compatible with the installed core.
-- PHPUnit `^10.5 || ^11.0` is compatible with both testing-framework majors, and
-  with the `#[Test]` / `#[DataProvider]` attributes used in the tests.
-- `phpunit.xml.dist` uses only attributes valid in both PHPUnit 10.5 and 11.
+- `typo3/testing-framework ^8.2.3` deckt die TYPO3-13.4-Linie ab; `^9.0`
+  deckt die TYPO3-14-Linie ab. Composer wählt die zum installierten Core
+  passende Version.
+- PHPUnit `^10.5 || ^11.0` ist mit beiden testing-framework-Hauptversionen
+  kompatibel sowie mit den in den Tests verwendeten Attributen `#[Test]` /
+  `#[DataProvider]`.
+- `phpunit.xml.dist` verwendet nur Attribute, die sowohl in PHPUnit 10.5 als
+  auch in 11 gültig sind.
 
-## Commands (run in a real PHP/Composer environment)
+## Befehle (in einer echten PHP-/Composer-Umgebung ausführen)
 
 ```bash
-# Install dependencies
+# Abhängigkeiten installieren
 composer install
 
-# Run the CMS-independent unit tests
+# Die CMS-unabhängigen Unit-Tests ausführen
 vendor/bin/phpunit -c phpunit.xml.dist
 
-# Verify the minimum constraints actually resolve (TYPO3 13.4.9 / PHP 8.2 baseline)
+# Verifizieren, dass sich die Mindest-Constraints tatsächlich auflösen (TYPO3-13.4.9-/PHP-8.2-Basis)
 composer update --prefer-lowest --prefer-stable
 vendor/bin/phpunit -c phpunit.xml.dist
 ```
 
-## CI matrix (to be executed in isolated installs)
+## CI-Matrix (in isolierten Installationen auszuführen)
 
-Each cell is a fresh Composer install pinned to the given TYPO3 line, then the
-unit suite (and, in later phases, TYPO3 functional tests):
+Jede Zelle ist eine frische, auf die angegebene TYPO3-Linie festgelegte
+Composer-Installation, gefolgt von der Unit-Suite (und, in späteren Phasen,
+TYPO3-Funktionstests):
 
-| # | TYPO3 | PHP | Composer flags | Purpose |
+| # | TYPO3 | PHP | Composer-Flags | Zweck |
 |---|---|---|---|---|
-| 1 | 13.4.9 | 8.2 | `--prefer-lowest --prefer-stable` | absolute minimum baseline |
-| 2 | latest 13.4.x | 8.3 (or 8.4) | default | current 13.4 LTS |
-| 3 | lowest 14.0 | core's PHP floor | default | 14 entry point |
-| 4 | latest 14.x | latest supported PHP | default | current 14 line |
+| 1 | 13.4.9 | 8.2 | `--prefer-lowest --prefer-stable` | absolute Mindestbasis |
+| 2 | neueste 13.4.x | 8.3 (oder 8.4) | Standard | aktuelle 13.4-LTS |
+| 3 | niedrigste 14.0 | PHP-Untergrenze des Cores | Standard | Einstiegspunkt für 14 |
+| 4 | neueste 14.x | neueste unterstützte PHP-Version | Standard | aktuelle 14-Linie |
 
-Example of pinning a cell before installing:
+Beispiel für das Festlegen einer Zelle vor der Installation:
 
 ```bash
 composer require --dev --no-update "typo3/cms-core:^13.4.9" "typo3/cms-backend:^13.4.9"
 composer update --prefer-lowest --prefer-stable
 ```
 
-## Functional tests (later phases)
+## Funktionstests (spätere Phasen)
 
-When destructive features arrive, TYPO3 functional tests will be added under
-`Tests/Functional/` using `typo3/testing-framework`, with a separate
-`Build/FunctionalTests.xml`. They will run in the same CI matrix. None exist in
-Phase 1 because there is no runtime behaviour (no writes, no process execution) to
-exercise against a booted TYPO3.
+Wenn destruktive Funktionen hinzukommen, werden TYPO3-Funktionstests unter
+`Tests/Functional/` mit `typo3/testing-framework` ergänzt, mit einer separaten
+`Build/FunctionalTests.xml`. Sie laufen in derselben CI-Matrix. In Phase 1
+existieren keine, da es kein Laufzeitverhalten gibt (keine Schreibvorgänge,
+keine Prozessausführung), das gegen ein gebootetes TYPO3 geprüft werden
+müsste.
 
-## Runtime checks still pending
+## Noch ausstehende Laufzeitprüfungen
 
-- Backend-module smoke test on a real **TYPO3 13.4.9** and a real **14.x** install
-  (both modules visible to admins under *System*; all sections render; DI compiles;
-  icon/labels/XLF resolve).
-- **Site Configuration** reading against a real installation: the inventory is
-  built from `SiteFinder` (site `base`, language `base`, `baseVariants`), which the
-  unit suite exercises through a double rather than through TYPO3.
-- **Backend session claim** against a real `be_sessions` row: the once-per-session
-  behaviour is exercised here through a double, so the TYPO3 session read/write
-  pair and the lock around it still want one live check with two parallel tabs.
-- **Live V-T.ONE interoperability**: `Tests/Unit/Support/ProductionVectors.php` is
-  still empty, so no vector produced by V-T.ONE has been replayed through this
-  client's verification path.
+- Backend-Modul-Smoke-Test auf einer echten **TYPO3-13.4.9**- und einer
+  echten **14.x**-Installation (beide Module für Administratoren unter
+  *System* sichtbar; alle Abschnitte rendern; DI kompiliert;
+  Icon/Labels/XLF werden aufgelöst).
+- Lesen der **Site-Konfiguration** gegen eine echte Installation: Das
+  Inventar wird aus `SiteFinder` aufgebaut (Site-`base`, Sprach-`base`,
+  `baseVariants`), was die Unit-Suite über ein Double statt über TYPO3 prüft.
+- **Backend-Session-Claim** gegen eine echte `be_sessions`-Zeile: Das
+  Einmal-pro-Session-Verhalten wird hier über ein Double geprüft, sodass das
+  Lese-/Schreibpaar der TYPO3-Session und die Sperre darum noch eine echte
+  Prüfung mit zwei parallelen Tabs benötigen.
+- **Live-Interoperabilität mit V-T.ONE**:
+  `Tests/Unit/Support/ProductionVectors.php` ist noch leer, sodass noch kein
+  von V-T.ONE erzeugter Vektor durch den Verifikationspfad dieses Clients
+  abgespielt wurde.

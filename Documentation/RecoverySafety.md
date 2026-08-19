@@ -1,128 +1,154 @@
-# Recovery Safety (post-incident hardening)
+# Recovery-Sicherheit (Härtung nach dem Vorfall)
 
-## What broke a live site
+## Was eine Live-Site beschädigt hat
 
-The previous recovery restored directory components — including `vendor/` — by
-**wiping the live directory in place and extracting the archive over it**
-(`RestoreService::restoreEntries()` → `wipeDirectory()` then `extractEntries()`
-into the live project path). For `vendor/` this is catastrophic:
+Die vorherige Wiederherstellung stellte Verzeichniskomponenten — einschließlich
+`vendor/` — wieder her, indem sie **das Live-Verzeichnis an Ort und Stelle
+leerte und das Archiv darüber extrahierte**
+(`RestoreService::restoreEntries()` → `wipeDirectory()`, dann
+`extractEntries()` in den Live-Projektpfad). Für `vendor/` ist das
+katastrophal:
 
-- the live vendor is deleted **before** any replacement is ready (non-atomic);
-- if the archived vendor is incomplete, from another environment, macOS-generated,
-  contains absolute/broken symlinks, or the archive was truncated, the site is
-  left with a half-populated vendor and no way back;
-- the running PHP process can no longer autoload the very classes it needs to
-  finish the restore.
+- der Live-Vendor wird gelöscht, **bevor** irgendein Ersatz bereit ist
+  (nicht-atomar);
+- ist der archivierte Vendor unvollständig, stammt er aus einer anderen
+  Umgebung, wurde er unter macOS erzeugt, enthält er absolute/kaputte
+  Symlinks, oder wurde das Archiv abgeschnitten, bleibt die Site mit einem
+  halb befüllten Vendor und ohne Rückweg zurück;
+- der laufende PHP-Prozess kann die genau für den Abschluss der
+  Wiederherstellung benötigten Klassen nicht mehr autoloaden.
 
-Root cause: **in-place, non-staged, non-atomic vendor overwrite with no rebuild,
-no verification and no retained previous vendor.**
+Grundursache: **In-Place-, nicht gestufte, nicht-atomare Vendor-Überschreibung
+ohne Neuaufbau, ohne Verifizierung und ohne erhaltenen vorherigen Vendor.**
 
-## The hardened model
+## Das gehärtete Modell
 
-Direct vendor overwrite is removed. `vendor/` is never wiped in place — a hard
-guard in `RestoreService::wipeDirectory()` refuses any path named `vendor`, and
-vendor is no longer part of the in-place restore order at all.
+Das direkte Überschreiben des Vendors wurde entfernt. `vendor/` wird nie mehr
+an Ort und Stelle geleert — eine harte Sperre in
+`RestoreService::wipeDirectory()` verweigert jeden Pfad namens `vendor`, und
+Vendor ist überhaupt kein Teil der In-Place-Restore-Reihenfolge mehr.
 
-### Vendor strategies (`VendorRestoreStrategy`)
+### Vendor-Strategien (`VendorRestoreStrategy`)
 
-- **Rebuild (default)** — restore `composer.json`/`composer.lock`, then
-  `composer install` in an isolated staging directory and switch it in atomically.
-- **Skip** — do not touch vendor.
-- **Archived (advanced, high risk)** — only when strict checks pass; still staged,
-  validated and switched atomically. Requires typing `RESTORE VENDOR`.
+- **Neuaufbau (Standard)** — `composer.json`/`composer.lock` wiederherstellen,
+  dann `composer install` in einem isolierten Staging-Verzeichnis ausführen
+  und dieses atomar einwechseln.
+- **Überspringen** — Vendor nicht anfassen.
+- **Archiviert (fortgeschritten, hohes Risiko)** — nur wenn strikte Prüfungen
+  bestehen; wird dennoch gestuft, validiert und atomar eingewechselt.
+  Erfordert die Eingabe von `RESTORE VENDOR`.
 
-The legacy `vendor: true` component flag is **rejected server-side** in both the
-backend and the standalone panel; vendor is controlled only by the strategy.
+Das veraltete Komponenten-Flag `vendor: true` wird **serverseitig
+zurückgewiesen**, sowohl im Backend als auch im eigenständigen Panel; Vendor
+wird ausschließlich über die Strategie gesteuert.
 
-### Staged rebuild + atomic switch (`VendorRecoveryService`, `AtomicDirectorySwitch`)
+### Gestufter Neuaufbau + atomarer Wechsel (`VendorRecoveryService`, `AtomicDirectorySwitch`)
 
-1. Validate restored `composer.json` + `composer.lock` (valid JSON).
-2. Validate PHP CLI + composer binary.
-3. Build an isolated dir co-located with the live vendor (guaranteed same
-   filesystem), symlinking project files so path repositories resolve, and copy
-   the restored composer files in.
+1. Wiederhergestellte `composer.json` + `composer.lock` validieren (gültiges
+   JSON).
+2. PHP-CLI + Composer-Binärdatei validieren.
+3. Ein isoliertes Verzeichnis, das sich am selben Ort wie der Live-Vendor
+   befindet (garantiert dasselbe Dateisystem), aufbauen, dabei Projektdateien
+   symlinken, damit Path-Repositories aufgelöst werden, und die
+   wiederhergestellten Composer-Dateien hineinkopieren.
 4. `composer install --no-interaction --no-progress --no-scripts
-   --optimize-autoloader --working-dir=<staging>` — never against live vendor.
-5. Validate the staged vendor: `autoload.php`, `composer/autoload_real.php`,
-   `composer/installed.php`, `composer/installed.json` exist; `typo3/cms-core`
-   present; installed set matches `composer.lock`; and every symlink stays inside
-   the project root.
+   --optimize-autoloader --working-dir=<staging>` — niemals gegen den
+   Live-Vendor.
+5. Den gestuften Vendor validieren: `autoload.php`,
+   `composer/autoload_real.php`, `composer/installed.php`,
+   `composer/installed.json` müssen existieren; `typo3/cms-core` muss
+   vorhanden sein; die installierte Menge muss `composer.lock` entsprechen;
+   und jeder Symlink muss innerhalb des Projekt-Roots bleiben.
 
-   **Symlink rule.** The trust boundary is the **project root**, not the vendor
-   subtree, and containment is judged **lexically** (via `PathNormalizer`) at each
-   link's final live location — never with `realpath()`, which would tunnel
-   through the staging build-directory symlinks and mis-judge containment. This
-   accepts the two symlink kinds Composer legitimately creates — bin proxies
-   (`vendor/bin/typo3 -> ../typo3/cms-cli/typo3`, inside vendor) and local
-   path-repository links (`vendor/acme/ext -> ../../packages/ext`, inside the
-   project but outside vendor) — while still rejecting any symlink whose
-   normalized target escapes the project root as an arbitrary external symlink.
-   Rejections are reported to the administrator with the relative link path, the
-   raw target, the normalized target and the reason.
-6. Atomic switch: `rename(vendor → .guardian-old-vendor-<job>)` then
-   `rename(<staging>/vendor → vendor)` — two renames on one filesystem. The site
-   never lacks a `vendor/`. Verify `vendor/autoload.php`; on failure the previous
-   vendor is restored immediately.
-7. The previous vendor is **retained** until the whole recovery succeeds; only
-   then is it discarded. If atomic rename is impossible (different filesystems),
-   recovery is **blocked** — there is no recursive-overwrite fallback.
+   **Symlink-Regel.** Die Vertrauensgrenze ist der **Projekt-Root**, nicht der
+   Vendor-Teilbaum, und die Eingrenzung wird **lexikalisch** (über
+   `PathNormalizer`) am endgültigen Live-Ort jedes Links beurteilt — niemals
+   mit `realpath()`, das sich durch die Staging-Build-Verzeichnis-Symlinks
+   graben und die Eingrenzung falsch beurteilen würde. Das akzeptiert die
+   beiden Symlink-Arten, die Composer legitim erzeugt — Bin-Proxys
+   (`vendor/bin/typo3 -> ../typo3/cms-cli/typo3`, innerhalb von vendor) und
+   lokale Path-Repository-Links (`vendor/acme/ext -> ../../packages/ext`,
+   innerhalb des Projekts, aber außerhalb von vendor) —, während jeder
+   Symlink zurückgewiesen wird, dessen normalisiertes Ziel den Projekt-Root
+   als beliebiger externer Symlink verlässt. Zurückweisungen werden dem
+   Administrator mit dem relativen Link-Pfad, dem rohen Ziel, dem
+   normalisierten Ziel und dem Grund gemeldet.
+6. Atomarer Wechsel: `rename(vendor → .guardian-old-vendor-<job>)`, dann
+   `rename(<staging>/vendor → vendor)` — zwei Renames auf einem Dateisystem.
+   Der Site fehlt zu keinem Zeitpunkt ein `vendor/`. `vendor/autoload.php`
+   wird verifiziert; bei Fehlschlag wird der vorherige Vendor sofort
+   wiederhergestellt.
+7. Der vorherige Vendor wird **erhalten**, bis die gesamte Wiederherstellung
+   erfolgreich ist; erst dann wird er verworfen. Ist ein atomares Rename
+   unmöglich (unterschiedliche Dateisysteme), wird die Wiederherstellung
+   **blockiert** — es gibt keinen rekursiven Überschreib-Fallback.
 
-### Transaction journal (`RecoveryTransactionJournal`)
+### Transaktionsjournal (`RecoveryTransactionJournal`)
 
-Before any destructive step, `var/guardian/recovery/<job-id>/transaction.json` is
-written and updated atomically (temp + rename) after each step, recording the
-step, moved/created paths, old/new vendor paths, DB state, previous maintenance
-state, safety-snapshot id and rollback state. On the next panel/backend load an
-incomplete transaction is detected, blocks any new recovery, and offers a safe
-rollback (`rollbackInterrupted()`).
+Vor jedem destruktiven Schritt wird
+`var/guardian/recovery/<job-id>/transaction.json` geschrieben und nach jedem
+Schritt atomar aktualisiert (temp + rename); erfasst werden der Schritt,
+verschobene/erstellte Pfade, alte/neue Vendor-Pfade, DB-Zustand, vorheriger
+Wartungszustand, ID des Sicherheits-Snapshots sowie der Rollback-Zustand. Beim
+nächsten Laden von Panel/Backend wird eine unvollständige Transaktion erkannt,
+blockiert jede neue Wiederherstellung und bietet einen sicheren Rollback an
+(`rollbackInterrupted()`).
 
-### Mandatory dry run (`RecoveryDryRun`)
+### Verpflichtender Probelauf (`RecoveryDryRun`)
 
-A real recovery is refused until a successful dry run exists for the **exact**
-backup + components + vendor strategy (a fingerprint of that selection). The dry run
-validates the archive, checks composer files, atomic-switch capability and disk
-space (archive + snapshot + staged vendor + retained old vendor ≈ 4×) and makes
-no changes, enables no maintenance and restores no database. Changing any
-selection invalidates the fingerprint.
+Eine echte Wiederherstellung wird verweigert, solange kein erfolgreicher
+Probelauf für die **exakte** Kombination aus Backup + Komponenten +
+Vendor-Strategie vorliegt (ein Fingerabdruck dieser Auswahl). Der Probelauf
+validiert das Archiv, prüft Composer-Dateien, die Fähigkeit zum atomaren
+Wechsel und den Speicherplatz (Archiv + Snapshot + gestufter Vendor +
+erhaltener alter Vendor ≈ 4×) und nimmt keine Änderungen vor, aktiviert keine
+Wartung und stellt keine Datenbank wieder her. Jede Änderung der Auswahl
+macht den Fingerabdruck ungültig.
 
-### Mandatory safety snapshot
+### Verpflichtender Sicherheits-Snapshot
 
-A pre-recovery snapshot (composer + DB + selected files, **excluding vendor** —
-vendor rollback is the atomic old-vendor rename, not an archive) is always taken;
-`restore()` refuses to run without it.
+Ein Snapshot vor der Wiederherstellung (Composer + DB + ausgewählte Dateien,
+**ohne Vendor** — der Vendor-Rollback erfolgt über das atomare
+Alt-Vendor-Rename, nicht über ein Archiv) wird immer erstellt; `restore()`
+verweigert die Ausführung ohne ihn.
 
-### Post-recovery verification
+### Verifizierung nach der Wiederherstellung
 
-When vendor was touched, success is only reported after:
-- `vendor/autoload.php` loads in a **separate** PHP CLI process, and
-- `vendor/bin/typo3 --version` bootstraps (TYPO3 13.4 + 14 compatible).
+Wurde Vendor angefasst, wird Erfolg erst gemeldet, nachdem:
+- `vendor/autoload.php` in einem **separaten** PHP-CLI-Prozess lädt, und
+- `vendor/bin/typo3 --version` bootstrapt (kompatibel mit TYPO3 13.4 + 14).
 
-Failure triggers automatic rollback.
+Ein Fehlschlag löst automatisches Rollback aus.
 
 ### Rollback
 
-On any failure after changes begin: the vendor switch is reverted (old vendor
-restored atomically; broken tree kept as `.guardian-failed-vendor-<job>` for
-diagnosis), non-vendor components are restored from the safety snapshot,
-maintenance is kept ON until rollback completes, and the outcome is reported as
-one of *rolled back* / *rollback incomplete* — never generic success.
+Bei jedem Fehlschlag, nachdem Änderungen begonnen haben: Der Vendor-Wechsel
+wird rückgängig gemacht (alter Vendor atomar wiederhergestellt; der defekte
+Baum wird zur Diagnose als `.guardian-failed-vendor-<job>` aufbewahrt),
+Nicht-Vendor-Komponenten werden aus dem Sicherheits-Snapshot wiederhergestellt,
+die Wartung bleibt EIN, bis der Rollback abgeschlossen ist, und das Ergebnis
+wird als *zurückgerollt* / *Rollback unvollständig* gemeldet — niemals als
+generischer Erfolg.
 
-### Same engine everywhere
+### Dieselbe Engine überall
 
-The backend Recovery tab and the standalone `_guardian-recovery.php` call the
-**same** `RestoreService` / `VendorRecoveryService` / `RecoveryDryRun` /
-`RecoveryTransactionJournal` via `StandaloneRecoveryKernel`. There is no safer
-backend path and unsafe panel path.
+Der Recovery-Tab im Backend und das eigenständige `_guardian-recovery.php`
+rufen **dieselben** `RestoreService` / `VendorRecoveryService` /
+`RecoveryDryRun` / `RecoveryTransactionJournal` über den
+`StandaloneRecoveryKernel` auf. Es gibt keinen sichereren Backend-Pfad und
+keinen unsicheren Panel-Pfad.
 
-## Disk-space requirements
+## Speicherplatzbedarf
 
-Plan for roughly: backup archive + safety snapshot + staged vendor + retained
-old vendor. The dry run blocks recovery when free space is below ~4× the archive.
+Rechnen Sie mit etwa: Backup-Archiv + Sicherheits-Snapshot + gestufter Vendor +
+erhaltener alter Vendor. Der Probelauf blockiert die Wiederherstellung, wenn
+der freie Speicherplatz unter ~4× der Archivgröße liegt.
 
-## Emergency manual rollback
+## Manueller Notfall-Rollback
 
-If a recovery is interrupted, open the panel/backend: the interrupted transaction
-is shown with a **Roll back** action. Manually, the previous vendor is at
-`<project>/.guardian-old-vendor-<job-id>` — restore it with
-`mv vendor .broken-vendor && mv .guardian-old-vendor-<job-id> vendor` as the
-project user, then flush caches.
+Wird eine Wiederherstellung unterbrochen, öffnen Sie das Panel/Backend: Die
+unterbrochene Transaktion wird mit einer **Zurückrollen**-Aktion angezeigt.
+Manuell befindet sich der vorherige Vendor unter
+`<project>/.guardian-old-vendor-<job-id>` — stellen Sie ihn als Projektbenutzer
+mit `mv vendor .broken-vendor && mv .guardian-old-vendor-<job-id> vendor`
+wieder her und leeren Sie anschließend die Caches.
