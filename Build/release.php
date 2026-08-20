@@ -144,6 +144,13 @@ $walker = new RecursiveIteratorIterator(
         static function (SplFileInfo $entry) use ($root): bool {
             $relative = str_replace($root . '/', '', $entry->getPathname());
 
+            // A previously built release archive lives at the project root
+            // (mirrors the .gitignore `/*.zip` rule) and must never be picked
+            // up as an input to the next build.
+            if (!str_contains($relative, '/') && str_ends_with($relative, '.zip')) {
+                return false;
+            }
+
             return !\in_array(explode('/', $relative)[0], EXCLUDED, true)
                 && $entry->getBasename() !== '.DS_Store';
         }
